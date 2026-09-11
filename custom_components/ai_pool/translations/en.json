@@ -35,8 +35,165 @@
       },
       "limits": {
         "title": "Allowances",
-        "description": "For each member of {members}, three numbers in order: requests per day (req/day), requests per minute (req/min), then the routing weight. Use 0 where the limit is unknown. Providers do not report remaining quota, so these numbers only steer the rotation — a real refusal is always detected from the error. Google publishes no fixed figures and does not guarantee them: read your own in AI Studio, and note they apply per project rather than per API key.",
-        "data": {}
+        "description": "Each member of {members} has its own section. Edit requests per day, requests per minute, and the routing weight. Use 0 where the limit is unknown. Providers do not report remaining quota, so these numbers only steer the rotation — a real refusal is always detected from the error. Google publishes no fixed figures and does not guarantee them: read your own in AI Studio, and note they apply per project rather than per API key.",
+        "sections": {
+          "member_1": {
+            "name": "{member_1}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          },
+          "member_2": {
+            "name": "{member_2}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          },
+          "member_3": {
+            "name": "{member_3}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          },
+          "member_4": {
+            "name": "{member_4}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          },
+          "member_5": {
+            "name": "{member_5}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          },
+          "member_6": {
+            "name": "{member_6}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          },
+          "member_7": {
+            "name": "{member_7}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          },
+          "member_8": {
+            "name": "{member_8}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          },
+          "member_9": {
+            "name": "{member_9}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          },
+          "member_10": {
+            "name": "{member_10}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          },
+          "member_11": {
+            "name": "{member_11}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          },
+          "member_12": {
+            "name": "{member_12}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          }
+        }
       }
     },
     "error": {
@@ -50,6 +207,14 @@
   "options": {
     "step": {
       "init": {
+        "title": "Configure the pool",
+        "description": "The pool type cannot be changed after creation.",
+        "menu_options": {
+          "members": "Members and policy",
+          "limits": "Allowances"
+        }
+      },
+      "members": {
         "title": "Members and policy",
         "description": "The pool type cannot be changed after creation.",
         "data": {
@@ -71,8 +236,165 @@
       },
       "limits": {
         "title": "Allowances",
-        "description": "For each member of {members}, three numbers in order: requests per day (req/day), requests per minute (req/min), then the routing weight. Use 0 where the limit is unknown. Providers do not report remaining quota, so these numbers only steer the rotation — a real refusal is always detected from the error. Google publishes no fixed figures and does not guarantee them: read your own in AI Studio, and note they apply per project rather than per API key.",
-        "data": {}
+        "description": "Each member of {members} has its own section. Edit requests per day, requests per minute, and the routing weight. Use 0 where the limit is unknown. Providers do not report remaining quota, so these numbers only steer the rotation — a real refusal is always detected from the error. Google publishes no fixed figures and does not guarantee them: read your own in AI Studio, and note they apply per project rather than per API key.",
+        "sections": {
+          "member_1": {
+            "name": "{member_1}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          },
+          "member_2": {
+            "name": "{member_2}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          },
+          "member_3": {
+            "name": "{member_3}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          },
+          "member_4": {
+            "name": "{member_4}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          },
+          "member_5": {
+            "name": "{member_5}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          },
+          "member_6": {
+            "name": "{member_6}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          },
+          "member_7": {
+            "name": "{member_7}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          },
+          "member_8": {
+            "name": "{member_8}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          },
+          "member_9": {
+            "name": "{member_9}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          },
+          "member_10": {
+            "name": "{member_10}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          },
+          "member_11": {
+            "name": "{member_11}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          },
+          "member_12": {
+            "name": "{member_12}",
+            "data": {
+              "daily_limit": "Requests per day",
+              "rpm_limit": "Requests per minute",
+              "weight": "Weight"
+            },
+            "data_description": {
+              "daily_limit": "Use 0 when the daily cap is unknown.",
+              "rpm_limit": "Use 0 when the per-minute cap is unknown.",
+              "weight": "Higher weight receives more of the traffic."
+            }
+          }
+        }
       }
     },
     "error": {

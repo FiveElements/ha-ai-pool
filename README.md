@@ -347,9 +347,10 @@ wiki page. The short list:
 | Cannot add a second pool over the same members | That would double-count the allowance. Identity is the exact set: `[A, B]` and `[A, C]` are different pools. |
 | Cannot change pool type | Create a new pool; type decides which platform loads |
 
-Configure or **Reconfigure** on the config entry edits members and policy
-without deleting the pool. Reload the entry (or `ai_pool.reset_member`) to
-re-admit a member disabled by a bad API key.
+Configure on the config entry opens a menu for members and policy, or for
+allowances. **Reconfigure** still walks both without deleting the pool.
+Reload the entry (or `ai_pool.reset_member`) to re-admit a member disabled
+by a bad API key.
 
 ## Per-type notes
 

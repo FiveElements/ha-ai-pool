@@ -14,6 +14,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.data_entry_flow import section
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector
 
@@ -41,9 +42,10 @@ from .const import (
     STRATEGIES,
 )
 
-LIMIT_PREFIX = "limit_"
-RPM_PREFIX = "rpm_"
-WEIGHT_PREFIX = "weight_"
+# Numbered so the frontend can translate labels. Embedding the entity id used
+# to put a '.' in the field name: ha-form treats that as a nested path, and
+# missing translations rendered the boxes as empty, so typed quotas never stuck.
+_MEMBER_SECTION = "member_{index}"
 # The form shows megabytes; storage and the STT entity keep bytes, which is
 # what the clip comparison actually measures.
 _BYTES_PER_MB = 1024 * 1024
@@ -70,6 +72,25 @@ def _stt_buffer_mb(raw: Any) -> int:
     except (TypeError, ValueError):
         value = DEFAULT_STT_BUFFER_LIMIT
     return max(1, value // _BYTES_PER_MB)
+
+
+def _draft_from_current(current: dict[str, Any]) -> dict[str, Any]:
+    """Copy the stored policy so an allowances-only edit cannot wipe it.
+
+    Configure used to always walk the members form first, which rebuilt
+    the draft from that submit. Jumping straight to quotas has to start
+    from what is already stored, including the STT buffer kept in bytes.
+    """
+    draft = {
+        CONF_POOL_TYPE: current[CONF_POOL_TYPE],
+        CONF_STRATEGY: current.get(CONF_STRATEGY, DEFAULT_STRATEGY),
+        CONF_COOLDOWN: int(current.get(CONF_COOLDOWN, DEFAULT_COOLDOWN)),
+        CONF_MAX_ATTEMPTS: int(current.get(CONF_MAX_ATTEMPTS, DEFAULT_MAX_ATTEMPTS)),
+        CONF_TIMEOUT: int(current.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)),
+    }
+    if CONF_STT_BUFFER_LIMIT in current:
+        draft[CONF_STT_BUFFER_LIMIT] = current[CONF_STT_BUFFER_LIMIT]
+    return draft
 
 
 def _policy_from_input(user_input: dict[str, Any]) -> dict[str, Any]:
@@ -164,54 +185,72 @@ def _members_schema(
     return vol.Schema(fields)
 
 
+def _member_section_key(index: int) -> str:
+    """Stable section id for the Nth member in the current form."""
+    return _MEMBER_SECTION.format(index=index)
+
+
+def _limits_placeholders(member_ids: list[str]) -> dict[str, str]:
+    """Entity ids for the numbered quota section titles."""
+    placeholders = {"members": ", ".join(member_ids)}
+    for index, member_id in enumerate(member_ids, start=1):
+        placeholders[_member_section_key(index)] = member_id
+    return placeholders
+
+
 def _limits_schema(member_ids: list[str], existing: list[dict[str, Any]]) -> vol.Schema:
     """Build the schema for the per-member allowances and weight.
 
-    Three numbers per member: requests per day, requests per minute, and the
-    routing weight. Providers meter tokens too, but Home Assistant never
-    reports a token count back, so there is nothing to declare against.
+    One section per member, with three numbers: requests per day, requests
+    per minute, and the routing weight. Providers meter tokens too, but Home
+    Assistant never reports a token count back, so there is nothing to
+    declare against.
     """
     previous = {item["entity_id"]: item for item in existing}
     fields: dict[Any, Any] = {}
-    for member_id in member_ids:
+    for index, member_id in enumerate(member_ids, start=1):
         old = previous.get(member_id, {})
-        fields[
-            vol.Required(
-                f"{LIMIT_PREFIX}{member_id}",
-                default=old.get(CONF_DAILY_LIMIT, 0),
-            )
-        ] = selector.NumberSelector(
-            selector.NumberSelectorConfig(
-                min=0,
-                max=1000000,
-                step=1,
-                unit_of_measurement="req/day",
-                mode=selector.NumberSelectorMode.BOX,
-            )
-        )
-        fields[
-            vol.Required(
-                f"{RPM_PREFIX}{member_id}",
-                default=old.get(CONF_RPM_LIMIT, 0),
-            )
-        ] = selector.NumberSelector(
-            selector.NumberSelectorConfig(
-                min=0,
-                max=2000,
-                step=1,
-                unit_of_measurement="req/min",
-                mode=selector.NumberSelectorMode.BOX,
-            )
-        )
-        fields[
-            vol.Required(
-                f"{WEIGHT_PREFIX}{member_id}",
-                default=old.get(CONF_WEIGHT, DEFAULT_WEIGHT),
-            )
-        ] = selector.NumberSelector(
-            selector.NumberSelectorConfig(
-                min=1, max=100, step=1, mode=selector.NumberSelectorMode.BOX
-            )
+        fields[vol.Required(_member_section_key(index))] = section(
+            vol.Schema(
+                {
+                    vol.Required(
+                        CONF_DAILY_LIMIT,
+                        default=int(old.get(CONF_DAILY_LIMIT, 0) or 0),
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=0,
+                            max=1000000,
+                            step=1,
+                            unit_of_measurement="req/day",
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+                    vol.Required(
+                        CONF_RPM_LIMIT,
+                        default=int(old.get(CONF_RPM_LIMIT, 0) or 0),
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=0,
+                            max=2000,
+                            step=1,
+                            unit_of_measurement="req/min",
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+                    vol.Required(
+                        CONF_WEIGHT,
+                        default=int(old.get(CONF_WEIGHT, DEFAULT_WEIGHT) or 1),
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=1,
+                            max=100,
+                            step=1,
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+                }
+            ),
+            {"collapsed": False},
         )
     return vol.Schema(fields)
 
@@ -250,17 +289,18 @@ def _build_members(
     member_ids: list[str], user_input: dict[str, Any]
 ) -> list[dict[str, Any]]:
     """Assemble member records from the limits step input."""
-    return [
-        {
-            "entity_id": member_id,
-            CONF_DAILY_LIMIT: int(user_input.get(f"{LIMIT_PREFIX}{member_id}", 0) or 0),
-            CONF_RPM_LIMIT: int(user_input.get(f"{RPM_PREFIX}{member_id}", 0) or 0),
-            CONF_WEIGHT: int(
-                user_input.get(f"{WEIGHT_PREFIX}{member_id}", DEFAULT_WEIGHT) or 1
-            ),
-        }
-        for member_id in member_ids
-    ]
+    members: list[dict[str, Any]] = []
+    for index, member_id in enumerate(member_ids, start=1):
+        raw = user_input.get(_member_section_key(index)) or {}
+        members.append(
+            {
+                "entity_id": member_id,
+                CONF_DAILY_LIMIT: int(raw.get(CONF_DAILY_LIMIT, 0) or 0),
+                CONF_RPM_LIMIT: int(raw.get(CONF_RPM_LIMIT, 0) or 0),
+                CONF_WEIGHT: int(raw.get(CONF_WEIGHT, DEFAULT_WEIGHT) or 1),
+            }
+        )
+    return members
 
 
 class AIPoolConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -379,7 +419,7 @@ class AIPoolConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="limits",
             data_schema=_limits_schema(self._member_ids, existing),
-            description_placeholders={"members": ", ".join(self._member_ids)},
+            description_placeholders=_limits_placeholders(self._member_ids),
         )
 
     @staticmethod
@@ -390,10 +430,12 @@ class AIPoolConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class AIPoolOptionsFlow(OptionsFlow):
-    """Edit members and policy of an existing pool.
+    """Edit members, policy or allowances of an existing pool.
 
     The pool type is intentionally not editable: it decides which platform is
-    loaded, so changing it would orphan the published entity.
+    loaded, so changing it would orphan the published entity. Configure opens
+    a menu because allowances used to sit behind the members form, which made
+    them look frozen after creation.
     """
 
     def __init__(self) -> None:
@@ -406,7 +448,26 @@ class AIPoolOptionsFlow(OptionsFlow):
         """Effective current configuration."""
         return {**self.config_entry.data, **self.config_entry.options}
 
+    def _ensure_edit_state(self) -> None:
+        """Fill draft and member ids when jumping straight to allowances."""
+        if not self._member_ids:
+            self._member_ids = [
+                item["entity_id"] for item in self._current.get(CONF_MEMBERS, [])
+            ]
+        if not self._draft:
+            self._draft = _draft_from_current(self._current)
+
     async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Choose members-and-policy or allowances."""
+        del user_input
+        return self.async_show_menu(
+            step_id="init",
+            menu_options=["members", "limits"],
+        )
+
+    async def async_step_members(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Pick members and the routing policy."""
@@ -429,7 +490,7 @@ class AIPoolOptionsFlow(OptionsFlow):
             item["entity_id"] for item in current.get(CONF_MEMBERS, [])
         ]
         return self.async_show_form(
-            step_id="init",
+            step_id="members",
             data_schema=_members_schema(self.hass, current[CONF_POOL_TYPE], defaults),
             errors=errors,
         )
@@ -438,6 +499,7 @@ class AIPoolOptionsFlow(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Declare each member's daily allowance and weight."""
+        self._ensure_edit_state()
         if user_input is not None:
             data = dict(self._draft)
             data[CONF_MEMBERS] = _build_members(self._member_ids, user_input)
@@ -461,7 +523,7 @@ class AIPoolOptionsFlow(OptionsFlow):
                         _build_members(self._member_ids, user_input),
                     ),
                     errors={"base": "duplicate_members"},
-                    description_placeholders={"members": ", ".join(self._member_ids)},
+                    description_placeholders=_limits_placeholders(self._member_ids),
                 )
             # Written back into `data`, not left in `options`. An options flow
             # normally stores its result in `options`, which would leave two
@@ -478,5 +540,5 @@ class AIPoolOptionsFlow(OptionsFlow):
             data_schema=_limits_schema(
                 self._member_ids, self._current.get(CONF_MEMBERS, [])
             ),
-            description_placeholders={"members": ", ".join(self._member_ids)},
+            description_placeholders=_limits_placeholders(self._member_ids),
         )

@@ -141,8 +141,8 @@ identity. `[A, B]` and `[A, C]` are different pools; both count A.
 
 ### Resolution
 
-Edit the existing pool (Configure or Reconfigure), or pick a different
-member set.
+Edit the existing pool (Configure → members and policy, or Reconfigure),
+or pick a different member set.
 
 ## Cannot change the pool type
 

@@ -39,6 +39,27 @@ def _schema_keys(result: dict) -> dict:
     return {str(key): key for key in result["data_schema"].schema}
 
 
+def _section_defaults(result: dict, index: int) -> dict:
+    """Index a numbered member section's inner fields."""
+    section_key = f"member_{index}"
+    for key, value in result["data_schema"].schema.items():
+        if str(key) == section_key:
+            return {str(inner): inner for inner in value.schema.schema}
+    raise KeyError(section_key)
+
+
+def _limits_input(*rows: tuple[int, int, int]) -> dict:
+    """Build a limits-step submit payload from (daily, rpm, weight) rows."""
+    return {
+        f"member_{index}": {
+            CONF_DAILY_LIMIT: daily,
+            CONF_RPM_LIMIT: rpm,
+            CONF_WEIGHT: weight,
+        }
+        for index, (daily, rpm, weight) in enumerate(rows, start=1)
+    }
+
+
 async def _start_members_step(hass: HomeAssistant, name: str, pool_type: str) -> dict:
     """Walk a new flow as far as the members-and-policy form."""
     result = await hass.config_entries.flow.async_init(
@@ -46,6 +67,17 @@ async def _start_members_step(hass: HomeAssistant, name: str, pool_type: str) ->
     )
     return await hass.config_entries.flow.async_configure(
         result["flow_id"], {"name": name, CONF_POOL_TYPE: pool_type}
+    )
+
+
+async def _choose_options(hass: HomeAssistant, entry_id: str, choice: str) -> dict:
+    """Open Configure and pick members-and-policy or allowances."""
+    result = await hass.config_entries.options.async_init(entry_id)
+    assert result["type"] is FlowResultType.MENU
+    assert result["step_id"] == "init"
+    assert list(result["menu_options"]) == ["members", "limits"]
+    return await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": choice}
     )
 
 
@@ -81,14 +113,7 @@ async def test_full_flow_creates_a_pool(hass: HomeAssistant) -> None:
 
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        {
-            f"limit_{A}": 250,
-            f"rpm_{A}": 10,
-            f"weight_{A}": 1,
-            f"limit_{B}": 250,
-            f"rpm_{B}": 15,
-            f"weight_{B}": 2,
-        },
+        _limits_input((250, 10, 1), (250, 15, 2)),
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "Gemini pool"
@@ -151,6 +176,86 @@ async def test_members_step_rejects_an_empty_selection(
     assert result["step_id"] == "limits"
 
 
+async def test_options_flow_edits_quotas_without_revisiting_members(
+    hass: HomeAssistant,
+) -> None:
+    """Configure must offer the allowances form as its own destination.
+
+    The page used to sit behind members-and-policy, so changing a daily
+    limit after creation looked impossible.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Pool",
+        data={
+            CONF_POOL_TYPE: "ai_task",
+            CONF_STRATEGY: STRATEGY_ROUND_ROBIN,
+            CONF_COOLDOWN: 300,
+            CONF_MAX_ATTEMPTS: 3,
+            CONF_TIMEOUT: DEFAULT_TIMEOUT,
+            CONF_MEMBERS: [
+                {
+                    "entity_id": A,
+                    CONF_DAILY_LIMIT: 777,
+                    CONF_RPM_LIMIT: 12,
+                    CONF_WEIGHT: 4,
+                }
+            ],
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await _choose_options(hass, entry.entry_id, "limits")
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "limits"
+    schema = _section_defaults(result, 1)
+    assert schema[CONF_DAILY_LIMIT].default() == 777
+    assert schema[CONF_RPM_LIMIT].default() == 12
+    assert schema[CONF_WEIGHT].default() == 4
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        _limits_input((50, 8, 2)),
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    member = entry.data[CONF_MEMBERS][0]
+    assert member[CONF_DAILY_LIMIT] == 50
+    assert member[CONF_RPM_LIMIT] == 8
+    assert member[CONF_WEIGHT] == 2
+    # Jumping to allowances must not reset the routing policy.
+    assert entry.data[CONF_STRATEGY] == STRATEGY_ROUND_ROBIN
+    assert entry.data[CONF_COOLDOWN] == 300
+    assert entry.data[CONF_TIMEOUT] == DEFAULT_TIMEOUT
+
+
+async def test_options_flow_quotas_keep_an_stt_buffer(
+    hass: HomeAssistant,
+) -> None:
+    """An allowances-only save must not drop the audio retry buffer."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Listen",
+        data={
+            CONF_POOL_TYPE: "stt",
+            CONF_STRATEGY: STRATEGY_ROUND_ROBIN,
+            CONF_COOLDOWN: 300,
+            CONF_MAX_ATTEMPTS: 3,
+            CONF_STT_BUFFER_LIMIT: 4 * 1024 * 1024,
+            CONF_MEMBERS: [{"entity_id": STT_A, CONF_DAILY_LIMIT: 0, CONF_WEIGHT: 1}],
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await _choose_options(hass, entry.entry_id, "limits")
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        _limits_input((20, 0, 1)),
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.data[CONF_STT_BUFFER_LIMIT] == 4 * 1024 * 1024
+    assert entry.data[CONF_MEMBERS][0][CONF_DAILY_LIMIT] == 20
+
+
 async def test_options_flow_updates_members_and_policy(
     hass: HomeAssistant,
 ) -> None:
@@ -167,8 +272,8 @@ async def test_options_flow_updates_members_and_policy(
     )
     entry.add_to_hass(hass)
 
-    result = await hass.config_entries.options.async_init(entry.entry_id)
-    assert result["step_id"] == "init"
+    result = await _choose_options(hass, entry.entry_id, "members")
+    assert result["step_id"] == "members"
 
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
@@ -183,14 +288,7 @@ async def test_options_flow_updates_members_and_policy(
 
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {
-            f"limit_{A}": 100,
-            f"rpm_{A}": 0,
-            f"weight_{A}": 1,
-            f"limit_{B}": 500,
-            f"rpm_{B}": 5,
-            f"weight_{B}": 3,
-        },
+        _limits_input((100, 0, 1), (500, 5, 3)),
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     # The options flow writes back into `data` rather than leaving a second
@@ -228,7 +326,7 @@ async def test_options_flow_keeps_existing_limits_as_defaults(
     )
     entry.add_to_hass(hass)
 
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await _choose_options(hass, entry.entry_id, "members")
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
         {
@@ -238,10 +336,10 @@ async def test_options_flow_keeps_existing_limits_as_defaults(
             CONF_MAX_ATTEMPTS: 3,
         },
     )
-    schema_keys = {str(key): key for key in result["data_schema"].schema}
-    assert schema_keys[f"limit_{A}"].default() == 777
-    assert schema_keys[f"rpm_{A}"].default() == 12
-    assert schema_keys[f"weight_{A}"].default() == 4
+    schema = _section_defaults(result, 1)
+    assert schema[CONF_DAILY_LIMIT].default() == 777
+    assert schema[CONF_RPM_LIMIT].default() == 12
+    assert schema[CONF_WEIGHT].default() == 4
 
 
 async def test_members_step_exposes_timeout_with_the_documented_default(
@@ -283,14 +381,7 @@ async def test_stt_flow_stores_the_buffer_in_bytes(
 
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        {
-            f"limit_{STT_A}": 0,
-            f"rpm_{STT_A}": 0,
-            f"weight_{STT_A}": 1,
-            f"limit_{STT_B}": 0,
-            f"rpm_{STT_B}": 0,
-            f"weight_{STT_B}": 1,
-        },
+        _limits_input((0, 0, 1), (0, 0, 1)),
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_STT_BUFFER_LIMIT] == 4 * 1024 * 1024
@@ -331,14 +422,7 @@ async def test_creating_a_second_pool_over_the_same_members_aborts(
     )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        {
-            f"limit_{B}": 0,
-            f"rpm_{B}": 0,
-            f"weight_{B}": 1,
-            f"limit_{A}": 0,
-            f"rpm_{A}": 0,
-            f"weight_{A}": 1,
-        },
+        _limits_input((0, 0, 1), (0, 0, 1)),
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
@@ -374,7 +458,7 @@ async def test_options_flow_rejects_a_member_set_another_pool_already_covers(
     )
     second.add_to_hass(hass)
 
-    result = await hass.config_entries.options.async_init(second.entry_id)
+    result = await _choose_options(hass, second.entry_id, "members")
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
         {
@@ -387,13 +471,13 @@ async def test_options_flow_rejects_a_member_set_another_pool_already_covers(
     )
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {f"limit_{A}": 100, f"rpm_{A}": 0, f"weight_{A}": 1},
+        _limits_input((100, 0, 1)),
     )
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "duplicate_members"}
-    schema = _schema_keys(result)
-    assert schema[f"limit_{A}"].default() == 100
-    assert schema[f"weight_{A}"].default() == 1
+    schema = _section_defaults(result, 1)
+    assert schema[CONF_DAILY_LIMIT].default() == 100
+    assert schema[CONF_WEIGHT].default() == 1
 
 
 async def test_options_flow_keeps_an_stt_buffer_as_the_default(
@@ -414,7 +498,7 @@ async def test_options_flow_keeps_an_stt_buffer_as_the_default(
     )
     entry.add_to_hass(hass)
 
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await _choose_options(hass, entry.entry_id, "members")
     schema = _schema_keys(result)
     assert schema[CONF_STT_BUFFER_LIMIT].default() == 4
 
@@ -431,7 +515,7 @@ async def test_options_flow_keeps_an_stt_buffer_as_the_default(
     )
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {f"limit_{STT_A}": 0, f"rpm_{STT_A}": 0, f"weight_{STT_A}": 1},
+        _limits_input((0, 0, 1)),
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.data[CONF_STT_BUFFER_LIMIT] == 16 * 1024 * 1024
@@ -481,14 +565,7 @@ async def test_reconfigure_flow_updates_members_without_changing_pool_type(
 
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        {
-            f"limit_{A}": 100,
-            f"rpm_{A}": 0,
-            f"weight_{A}": 1,
-            f"limit_{B}": 500,
-            f"rpm_{B}": 5,
-            f"weight_{B}": 3,
-        },
+        _limits_input((100, 0, 1), (500, 5, 3)),
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
@@ -549,7 +626,7 @@ async def test_reconfigure_flow_rejects_a_member_set_another_pool_already_covers
     )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        {f"limit_{A}": 100, f"rpm_{A}": 0, f"weight_{A}": 1},
+        _limits_input((100, 0, 1)),
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
@@ -574,7 +651,7 @@ async def test_options_flow_recovers_from_an_empty_selection(
     )
     entry.add_to_hass(hass)
 
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await _choose_options(hass, entry.entry_id, "members")
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
         {
@@ -601,7 +678,7 @@ async def test_options_flow_recovers_from_an_empty_selection(
     assert result["step_id"] == "limits"
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {f"limit_{A}": 100, f"rpm_{A}": 0, f"weight_{A}": 1},
+        _limits_input((100, 0, 1)),
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
 
@@ -637,7 +714,7 @@ async def test_options_flow_clash_sees_an_unstamped_unique_id(
     )
     second.add_to_hass(hass)
 
-    result = await hass.config_entries.options.async_init(second.entry_id)
+    result = await _choose_options(hass, second.entry_id, "members")
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
         {
@@ -650,7 +727,7 @@ async def test_options_flow_clash_sees_an_unstamped_unique_id(
     )
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {f"limit_{A}": 100, f"rpm_{A}": 0, f"weight_{A}": 1},
+        _limits_input((100, 0, 1)),
     )
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "duplicate_members"}
@@ -698,7 +775,7 @@ async def test_reconfigure_flow_keeps_an_stt_buffer_as_the_default(
     )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        {f"limit_{STT_A}": 0, f"rpm_{STT_A}": 0, f"weight_{STT_A}": 1},
+        _limits_input((0, 0, 1)),
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"

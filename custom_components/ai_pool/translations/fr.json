@@ -35,8 +35,165 @@
       },
       "limits": {
         "title": "Quotas",
-        "description": "Pour chaque membre de {members}, trois nombres dans l'ordre : requêtes par jour (req/day), requêtes par minute (req/min), puis le poids. Mettre 0 quand la limite est inconnue. Les fournisseurs n'exposent pas leur quota restant : ces valeurs ne servent qu'à orienter la rotation, un refus réel est toujours détecté à partir de l'erreur. Google ne publie plus de chiffres fixes et ne les garantit pas : lisez les vôtres dans AI Studio, et retenez qu'ils s'appliquent par projet et non par clé API.",
-        "data": {}
+        "description": "Chaque membre de {members} a sa propre section. Modifier les requêtes par jour, les requêtes par minute, puis le poids. Mettre 0 quand la limite est inconnue. Les fournisseurs n'exposent pas leur quota restant : ces valeurs ne servent qu'à orienter la rotation, un refus réel est toujours détecté à partir de l'erreur. Google ne publie plus de chiffres fixes et ne les garantit pas : lisez les vôtres dans AI Studio, et retenez qu'ils s'appliquent par projet et non par clé API.",
+        "sections": {
+          "member_1": {
+            "name": "{member_1}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          },
+          "member_2": {
+            "name": "{member_2}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          },
+          "member_3": {
+            "name": "{member_3}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          },
+          "member_4": {
+            "name": "{member_4}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          },
+          "member_5": {
+            "name": "{member_5}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          },
+          "member_6": {
+            "name": "{member_6}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          },
+          "member_7": {
+            "name": "{member_7}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          },
+          "member_8": {
+            "name": "{member_8}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          },
+          "member_9": {
+            "name": "{member_9}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          },
+          "member_10": {
+            "name": "{member_10}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          },
+          "member_11": {
+            "name": "{member_11}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          },
+          "member_12": {
+            "name": "{member_12}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          }
+        }
       }
     },
     "error": {
@@ -50,6 +207,14 @@
   "options": {
     "step": {
       "init": {
+        "title": "Configurer le pool",
+        "description": "Le type de pool n'est pas modifiable après la création.",
+        "menu_options": {
+          "members": "Membres et politique",
+          "limits": "Quotas"
+        }
+      },
+      "members": {
         "title": "Membres et politique",
         "description": "Le type de pool n'est pas modifiable après la création.",
         "data": {
@@ -71,8 +236,165 @@
       },
       "limits": {
         "title": "Quotas",
-        "description": "Pour chaque membre de {members}, trois nombres dans l'ordre : requêtes par jour (req/day), requêtes par minute (req/min), puis le poids. Mettre 0 quand la limite est inconnue. Les fournisseurs n'exposent pas leur quota restant : ces valeurs ne servent qu'à orienter la rotation, un refus réel est toujours détecté à partir de l'erreur. Google ne publie plus de chiffres fixes et ne les garantit pas : lisez les vôtres dans AI Studio, et retenez qu'ils s'appliquent par projet et non par clé API.",
-        "data": {}
+        "description": "Chaque membre de {members} a sa propre section. Modifier les requêtes par jour, les requêtes par minute, puis le poids. Mettre 0 quand la limite est inconnue. Les fournisseurs n'exposent pas leur quota restant : ces valeurs ne servent qu'à orienter la rotation, un refus réel est toujours détecté à partir de l'erreur. Google ne publie plus de chiffres fixes et ne les garantit pas : lisez les vôtres dans AI Studio, et retenez qu'ils s'appliquent par projet et non par clé API.",
+        "sections": {
+          "member_1": {
+            "name": "{member_1}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          },
+          "member_2": {
+            "name": "{member_2}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          },
+          "member_3": {
+            "name": "{member_3}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          },
+          "member_4": {
+            "name": "{member_4}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          },
+          "member_5": {
+            "name": "{member_5}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          },
+          "member_6": {
+            "name": "{member_6}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          },
+          "member_7": {
+            "name": "{member_7}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          },
+          "member_8": {
+            "name": "{member_8}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          },
+          "member_9": {
+            "name": "{member_9}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          },
+          "member_10": {
+            "name": "{member_10}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          },
+          "member_11": {
+            "name": "{member_11}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          },
+          "member_12": {
+            "name": "{member_12}",
+            "data": {
+              "daily_limit": "Requêtes par jour",
+              "rpm_limit": "Requêtes par minute",
+              "weight": "Poids"
+            },
+            "data_description": {
+              "daily_limit": "Mettre 0 si le plafond quotidien est inconnu.",
+              "rpm_limit": "Mettre 0 si le plafond par minute est inconnu.",
+              "weight": "Un poids plus élevé reçoit plus de trafic."
+            }
+          }
+        }
       }
     },
     "error": {

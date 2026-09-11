@@ -651,10 +651,10 @@ async def test_calls_sensor_carries_model_and_strikes(
     assert attributes["cooldown_strikes"] == 0
 
 
-async def test_latency_and_fallback_sensors_are_readable_entities(
+async def test_latency_sensors_are_disabled_by_default(
     hass: HomeAssistant, available
 ) -> None:
-    """The other two diagnostic sensors must exist as states, not just registry rows."""
+    """A measurement per member on every success is too noisy by default."""
     assert await async_setup_component(hass, "homeassistant", {})
     assert await async_setup_component(hass, "ai_task", {})
     available(A)
@@ -666,22 +666,24 @@ async def test_latency_and_fallback_sensors_are_readable_entities(
 
     registry = er.async_get(hass)
     entities = {
-        entity.unique_id: entity.entity_id
+        entity.unique_id: entity
         for entity in er.async_entries_for_config_entry(registry, entry.entry_id)
     }
-    latency = hass.states.get(entities[f"{entry.entry_id}_{A}_latency"])
-    fallback = hass.states.get(entities[f"{entry.entry_id}_fallback_rate"])
+    latency = entities[f"{entry.entry_id}_{A}_latency"]
+    fallback = entities[f"{entry.entry_id}_fallback_rate"]
+    calls = entities[f"{entry.entry_id}_{A}"]
 
-    assert latency is not None
-    assert latency.state == "unknown"
-    assert "average_today" in latency.attributes
-    assert "recent_average" in latency.attributes
+    assert latency.disabled_by is er.RegistryEntryDisabler.INTEGRATION
+    assert hass.states.get(latency.entity_id) is None
+    assert calls.disabled_by is None
+    assert hass.states.get(calls.entity_id) is not None
 
-    assert fallback is not None
-    assert fallback.state == "unknown"
-    assert fallback.attributes["requests_today"] == 0
-    assert fallback.attributes["served_today"] == 0
-    assert fallback.attributes["fallbacks_today"] == 0
+    fallback_state = hass.states.get(fallback.entity_id)
+    assert fallback_state is not None
+    assert fallback_state.state == "unknown"
+    assert fallback_state.attributes["requests_today"] == 0
+    assert fallback_state.attributes["served_today"] == 0
+    assert fallback_state.attributes["fallbacks_today"] == 0
 
 
 # --- What the audit found -----------------------------------------------------

@@ -191,6 +191,11 @@ class AIPoolLatencySensor(AIPoolMemberSensor):
     _attr_native_unit_of_measurement = UnitOfTime.SECONDS
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 1
+    # One measurement per member, written on every success. That is the
+    # comparison that tells you how to order them, and it is also N extra
+    # recorder series on a pool that already has calls, fallback and a
+    # problem sensor. Off until somebody asks for the chart.
+    _attr_entity_registry_enabled_default = False
 
     def __init__(
         self, pool: AIPool, entry: ConfigEntry, member_id: str, label: str

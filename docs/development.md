@@ -61,3 +61,6 @@ mkdocs serve
 
 Pushes to `main` publish [GitHub Pages](https://fiveelements.github.io/ha-ai-pool/)
 with Material for MkDocs.
+
+How routing is split across modules is documented under
+[Architecture](architecture.md).

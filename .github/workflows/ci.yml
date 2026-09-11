@@ -59,6 +59,7 @@ jobs:
             --cov=custom_components.ai_pool \
             --cov-report=term-missing \
             --cov-report=xml \
+            --cov-fail-under=95 \
             -q
       - name: Upload coverage
         if: matrix.coverage

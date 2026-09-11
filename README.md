@@ -29,6 +29,22 @@ Four pool types are supported, each fronting its own domain:
 | `tts`          | `tts.*`              | `tts.async_get_media_source_audio`       |
 | `stt`          | `stt.*`              | the member entity's audio stream handler |
 
+## Documentation
+
+The wiki is a [Material for MkDocs](https://fiveelements.github.io/ha-ai-pool/)
+site, published from `docs/` on every push to `main`:
+
+| Page | Contents |
+| ---- | -------- |
+| [Home](https://fiveelements.github.io/ha-ai-pool/) | What a pool is, and what it cannot know |
+| [Install](https://fiveelements.github.io/ha-ai-pool/install/) | HACS, manual install, removal, parameters |
+| [Configuration](https://fiveelements.github.io/ha-ai-pool/configuration/) | Strategies and failure handling |
+| [Routing](https://fiveelements.github.io/ha-ai-pool/routing/) | Quotas, 503 vs 429, cooldowns, accounts |
+| [Observability](https://fiveelements.github.io/ha-ai-pool/observability/) | Sensors, events, `ai_pool.reset_member` |
+| [Platforms](https://fiveelements.github.io/ha-ai-pool/platforms/) | Notes per `ai_task` / conversation / TTS / STT |
+| [Architecture](https://fiveelements.github.io/ha-ai-pool/architecture/) | Modules, request path, invariants |
+| [Development](https://fiveelements.github.io/ha-ai-pool/development/) | Tests, quality scale, releasing |
+
 ## What this actually buys you
 
 **Quota rotation.** Free tiers are commonly metered *per model*, so alternating
@@ -148,7 +164,7 @@ different question:
 | Sensor | Question it answers |
 | ------ | ------------------- |
 | `<member> calls` | Who is doing the work, and against which allowance? Status, remaining allowance, success rate, cooldown, last error, one `failures_<kind>` counter per observed failure kind, and the rate-limit counters below. |
-| `<member> latency` | Who answers fast enough to deserve going first? Duration of the last successful call, with today's average, min, max and a recent-window average. |
+| `<member> latency` | Who answers fast enough to deserve going first? Duration of the last successful call, with today's average, min, max and a recent-window average. **Disabled by default** — enable it when you want the chart. |
 | `Fallback rate` | Is the preference order any good? Share of today's requests that needed more than one member, with the attempt counters behind it. |
 
 The latency sensor is a `measurement` with `device_class: duration`, so the
@@ -315,6 +331,11 @@ not a question about today.
   audio, so it may be incomplete — the warning in the log says so.
 
 ## Development
+
+Longer notes (architecture, tests, quality scale, releasing) live on the
+[development](https://fiveelements.github.io/ha-ai-pool/development/) and
+[architecture](https://fiveelements.github.io/ha-ai-pool/architecture/) wiki
+pages.
 
 ```bash
 python -m venv .venv

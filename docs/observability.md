@@ -8,7 +8,7 @@ without instrumenting any of them.
 | Sensor | Question it answers |
 | ------ | ------------------- |
 | `<member> calls` | Who is doing the work, and against which allowance? Status, remaining allowance, success rate, cooldown, last error, one `failures_<kind>` counter per observed failure kind, and the rate-limit counters below. |
-| `<member> latency` | Who answers fast enough to deserve going first? Duration of the last successful call, with today's average, min, max and a recent-window average. |
+| `<member> latency` | Who answers fast enough to deserve going first? Duration of the last successful call, with today's average, min, max and a recent-window average. **Disabled by default** — enable it when you want the chart. |
 | `Fallback rate` | Is the preference order any good? Share of today's requests that needed more than one member. `unknown` until the first request of the day. |
 
 The latency sensor is a `measurement` with `device_class: duration`, so the

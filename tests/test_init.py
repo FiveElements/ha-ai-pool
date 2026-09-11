@@ -75,6 +75,7 @@ async def test_setup_and_unload(hass: HomeAssistant, pool_type: str) -> None:
     assert entry.state is ConfigEntryState.LOADED
 
     # Calls and latency per member, plus the pool's own fallback-rate sensor.
+    # Latency is registered but disabled by default (noisy measurements).
     registry = er.async_get(hass)
     entities = er.async_entries_for_config_entry(registry, entry.entry_id)
     sensors = [entity for entity in entities if entity.domain == "sensor"]

@@ -307,14 +307,21 @@ class FakeTTSMember(tts.TextToSpeechEntity):
         audio: bytes = b"",
         error: str | None = None,
         languages: list[str] | None = None,
+        options: list[str] | None = None,
     ) -> None:
         """Initialise the fake member."""
         self._attr_name = name
         self._attr_default_language = "en"
         self._attr_supported_languages = languages or ["en"]
+        self._options = options or []
         self._audio = audio
         self._error = error
         self.calls = 0
+
+    @property
+    def supported_options(self) -> list[str]:
+        """Options this member accepts."""
+        return self._options
 
     def get_tts_audio(
         self, message: str, language: str, options: dict[str, Any] | None = None
@@ -382,17 +389,47 @@ async def test_tts_pool_advertises_the_union_of_member_languages(
     assert pool_entity.name == TITLE
 
 
+async def test_tts_pool_advertises_the_union_of_member_options(
+    hass: HomeAssistant,
+) -> None:
+    """A caller option only some members understand is still advertised."""
+    assert await async_setup_component(hass, "tts", {})
+    await publish_members(
+        hass,
+        "tts",
+        [
+            FakeTTSMember(A, audio=b"a", options=["voice"]),
+            FakeTTSMember(B, audio=b"b", options=["voice", "speed"]),
+        ],
+    )
+    await setup_pool(hass, "tts")
+
+    pool_entity = hass.data[tts.DATA_COMPONENT].get_entity("tts.test_pool")
+    assert pool_entity is not None
+    assert pool_entity.supported_options == ["voice", "speed"]
+
+
 # --- stt --------------------------------------------------------------------
 
 
 class FakeSTTMember(stt.SpeechToTextEntity):
     """A stt member that transcribes fixed text, or fails."""
 
-    def __init__(self, name: str, *, text: str = "", error: str | None = None) -> None:
+    def __init__(
+        self,
+        name: str,
+        *,
+        text: str = "",
+        error: str | None = None,
+        formats: list[stt.AudioFormats] | None = None,
+        result: stt.SpeechResultState | None = None,
+    ) -> None:
         """Initialise the fake member."""
         self._attr_name = name
         self._text = text
         self._error = error
+        self._formats = formats
+        self._result = result or stt.SpeechResultState.SUCCESS
         self.calls = 0
         self.received = b""
 
@@ -404,7 +441,7 @@ class FakeSTTMember(stt.SpeechToTextEntity):
     @property
     def supported_formats(self) -> list[stt.AudioFormats]:
         """Formats this member accepts."""
-        return [stt.AudioFormats.WAV]
+        return self._formats if self._formats is not None else [stt.AudioFormats.WAV]
 
     @property
     def supported_codecs(self) -> list[stt.AudioCodecs]:
@@ -434,7 +471,7 @@ class FakeSTTMember(stt.SpeechToTextEntity):
         self.received = b"".join([chunk async for chunk in stream])
         if self._error:
             raise HomeAssistantError(self._error)
-        return stt.SpeechResult(self._text, stt.SpeechResultState.SUCCESS)
+        return stt.SpeechResult(self._text, self._result)
 
 
 def audio_metadata() -> stt.SpeechMetadata:
@@ -519,8 +556,93 @@ async def test_stt_pool_intersects_audio_capabilities(hass: HomeAssistant) -> No
     pool_entity = stt.async_get_speech_to_text_entity(hass, "stt.test_pool")
     assert pool_entity is not None
     assert pool_entity.supported_formats == [stt.AudioFormats.WAV]
+    assert pool_entity.supported_codecs == [stt.AudioCodecs.PCM]
+    assert pool_entity.supported_bit_rates == [stt.AudioBitRates.BITRATE_16]
     assert pool_entity.supported_sample_rates == [stt.AudioSampleRates.SAMPLERATE_16000]
+    assert pool_entity.supported_channels == [stt.AudioChannels.CHANNEL_MONO]
     assert pool_entity.supported_languages == ["en-US"]
+
+
+async def test_stt_pool_falls_back_when_no_member_entity_is_live(
+    hass: HomeAssistant,
+) -> None:
+    """Refusing all audio is worse than letting a later call fail over."""
+    assert await async_setup_component(hass, "stt", {})
+    await setup_pool(hass, "stt")
+
+    pool_entity = stt.async_get_speech_to_text_entity(hass, "stt.test_pool")
+    assert pool_entity is not None
+    assert pool_entity.supported_formats == [stt.AudioFormats.WAV]
+    assert pool_entity.supported_codecs == [stt.AudioCodecs.PCM]
+    assert pool_entity.supported_bit_rates == [stt.AudioBitRates.BITRATE_16]
+    assert pool_entity.supported_channels == [stt.AudioChannels.CHANNEL_MONO]
+
+
+async def test_stt_pool_falls_back_when_members_share_no_format(
+    hass: HomeAssistant,
+) -> None:
+    """The pipeline encodes once; an empty intersection would refuse every recording."""
+    assert await async_setup_component(hass, "stt", {})
+    await publish_members(
+        hass,
+        "stt",
+        [
+            FakeSTTMember(A, formats=[stt.AudioFormats.WAV]),
+            FakeSTTMember(B, formats=[stt.AudioFormats.OGG]),
+        ],
+    )
+    await setup_pool(hass, "stt")
+
+    pool_entity = stt.async_get_speech_to_text_entity(hass, "stt.test_pool")
+    assert pool_entity is not None
+    assert pool_entity.supported_formats == [stt.AudioFormats.WAV]
+
+
+async def test_stt_pool_skips_a_member_that_is_not_loaded(
+    hass: HomeAssistant,
+) -> None:
+    """A configured member that never published an entity is a failed attempt."""
+    assert await async_setup_component(hass, "stt", {})
+    member_b = FakeSTTMember(B, text="transcript from b")
+    await publish_members(hass, "stt", [member_b])
+    # A state without an stt entity keeps the member eligible, so the pool
+    # still asks for it rather than demoting it as unavailable.
+    hass.states.async_set("stt.member_a", "2026-01-01T00:00:00+00:00")
+    await setup_pool(hass, "stt")
+
+    async def stream() -> AsyncIterable[bytes]:
+        yield b"hello"
+
+    pool_entity = stt.async_get_speech_to_text_entity(hass, "stt.test_pool")
+    assert pool_entity is not None
+    result = await pool_entity.async_process_audio_stream(audio_metadata(), stream())
+
+    assert result.result is stt.SpeechResultState.SUCCESS
+    assert result.text == "transcript from b"
+    assert member_b.calls == 1
+
+
+async def test_stt_pool_skips_a_member_that_returns_an_error_result(
+    hass: HomeAssistant,
+) -> None:
+    """An empty transcript from the first member must not end the request."""
+    assert await async_setup_component(hass, "stt", {})
+    member_a = FakeSTTMember(A, result=stt.SpeechResultState.ERROR)
+    member_b = FakeSTTMember(B, text="transcript from b")
+    await publish_members(hass, "stt", [member_a, member_b])
+    await setup_pool(hass, "stt")
+
+    async def stream() -> AsyncIterable[bytes]:
+        yield b"hello"
+
+    pool_entity = stt.async_get_speech_to_text_entity(hass, "stt.test_pool")
+    assert pool_entity is not None
+    result = await pool_entity.async_process_audio_stream(audio_metadata(), stream())
+
+    assert result.result is stt.SpeechResultState.SUCCESS
+    assert result.text == "transcript from b"
+    assert member_a.calls == 1
+    assert member_b.calls == 1
 
 
 # --- diagnostics ------------------------------------------------------------

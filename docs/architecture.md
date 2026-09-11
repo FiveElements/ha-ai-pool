@@ -30,24 +30,27 @@ reload.
 
 1. A platform adapter builds `run` (call this member the way Home Assistant
    would) and calls `async_execute`.
-2. The store rolls the local day if needed — one of exactly two call sites
-   that may mutate day counters. The other is a midnight
-   `async_track_time_change`. Sensors and `snapshot` stay read-only: they
-   compare against `store.today()` instead of rolling.
+2. The store rolls the local day if needed, unless a member still has an
+   in-flight attempt. Sensors and `snapshot` stay read-only: they compare
+   against `store.today()` instead of rolling. After the last in-flight
+   attempt finishes, the request path rolls again so midnight cannot wipe
+   a request still awaiting a provider.
 3. Members are split into a preferred group and a last-resort group
    (exhausted, cooling, throttled, unavailable). Declared limits only
    **reorder**. A member is never dropped except `disabled` (auth).
 4. `order_candidates()` ranks the preferred group, then the last-resort
    group, using the configured strategy.
-5. The round-robin cursor advances by one modulo `CURSOR_MODULUS` (2520),
-   not modulo the live queue length — taking it modulo a shrinking group
-   used to skew rotation.
+5. The round-robin cursor advances by one, independently of the live queue
+   length — taking it modulo a shrinking group used to skew rotation, and
+   wrapping on 2520 repeated an offset once a pool grew past ten members.
 6. For each candidate, `run(entity_id)` is awaited with the pool timeout.
    The attempt is recorded *before* the call: the provider charges the
-   request when it receives it, not when it answers.
+   request when it receives it, not when it answers. A 503 skip reads the
+   live model, not the sensor cache.
 7. On exception, `classify()` maps the message to a `FailureKind`. QUOTA is
    matched before AUTH: providers return spent allowances as `403` as readily
-   as `429`, and AUTH is the only permanent verdict.
+   as `429`. A bare `429` is capacity (cooldown); quota / `RESOURCE_EXHAUSTED`
+   is the daily block. AUTH is the only permanent verdict.
 8. A capacity `503` on one API key does **not** skip other keys. Only other
    members of the **same config entry** on that model are skipped for the
    rest of *this* request. A skip is not charged as an attempt.
@@ -124,9 +127,10 @@ fail loudly.
 ## Persistence
 
 `UsageStore` writes counters to Home Assistant storage keyed by config entry.
-A restart at 18:00 does not hand a spent member a fresh allowance. Schema
-migration hooks currently do nothing: they exist so the first version bump
-does not break entries.
+A restart at 18:00 does not hand a spent member a fresh allowance. Config-entry
+version 2 stamps `unique_id` from the member set so two pools over the same
+members cannot both load. The storage schema hook currently no-ops: it exists
+so the first storage version bump does not break counters.
 
 Reloading the entry re-admits disabled members (`clear_disabled`). That, and
 `ai_pool.reset_member`, are the only escapes from an auth disable.

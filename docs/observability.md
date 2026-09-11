@@ -30,8 +30,10 @@ the pool is working around an order that should be changed.
 
 ## When the pool cannot serve
 
-A **problem sensor** per pool turns on when no member is in a state to serve,
-with each member's status as attributes. It is polled rather than event-driven,
+A **problem sensor** per pool turns on when no member is healthy (preferred).
+Exhausted, cooling or throttled members are still tried as last resort, so the
+sensor can be on while a call still succeeds. Each member's status is an
+attribute. It is polled rather than event-driven,
 because a cooldown expiring or a member going unavailable can happen without
 the pool being involved.
 

@@ -69,6 +69,18 @@ def test_weight_biases_selection() -> None:
     assert heavy.headroom > light.headroom
 
 
+def test_weight_biases_selection_when_a_limit_is_declared() -> None:
+    """The unlimited formula used to be the only one that favoured weight.
+
+    With a daily limit the share was divided by weight, so least_used sent
+    traffic to the light member — the opposite of what the form describes.
+    """
+    light = Candidate("light", weight=1, daily_limit=100, used_today=10)
+    heavy = Candidate("heavy", weight=10, daily_limit=100, used_today=10)
+    assert heavy.headroom > light.headroom
+    assert keys(order_candidates([light, heavy], STRATEGY_LEAST_USED))[0] == "heavy"
+
+
 def test_spent_members_go_last_but_are_not_dropped() -> None:
     """A declared limit is an estimate, never ground truth.
 

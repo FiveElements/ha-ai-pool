@@ -4,7 +4,7 @@ rules:
   appropriate-polling: done
   brands:
     status: done
-    comment: HACS branding is shipped as icon.png in the repository. A listing in home-assistant/brands can follow.
+    comment: HACS branding is shipped as icon.png at the repository root. A listing in home-assistant/brands is optional follow-up, not claimed as shipped.
   common-modules: done
   config-flow-test-coverage: done
   config-flow: done

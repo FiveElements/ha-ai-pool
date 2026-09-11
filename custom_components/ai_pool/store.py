@@ -24,7 +24,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, STORAGE_VERSION
+from .const import STORAGE_KEY_TEMPLATE, STORAGE_VERSION
 
 RECENT_LATENCY_SAMPLES = 20
 
@@ -34,7 +34,7 @@ RECENT_LATENCY_SAMPLES = 20
 RATE_WINDOW_SECONDS = 60.0
 # A hard ceiling on the log, so a runaway caller cannot grow the stored state
 # without bound. Well above any free-tier per-minute allowance.
-MAX_REQUEST_LOG = 200
+MAX_REQUEST_LOG = 2000
 
 # Seconds a request-path write waits, so a burst of calls costs one write.
 SAVE_DELAY = 15
@@ -74,6 +74,10 @@ class MemberState:
     input_chars: int = 0
     # [[unix timestamp, request size in characters], ...] for the last minute.
     request_log: list[list[float]] = field(default_factory=list)
+    # In-flight attempts are not persisted: a crash must not leave a member
+    # stuck "busy" forever. Used so midnight and reset cannot wipe the
+    # request that is still awaiting a provider.
+    inflight: int = 0
 
     def record_request(self, size: int = 0, now: float | None = None) -> None:
         """Log one attempt against this member, with its input size.
@@ -187,12 +191,18 @@ class MemberState:
 
     def as_dict(self) -> dict[str, Any]:
         """Serialise for the storage helper."""
-        return asdict(self)
+        data = asdict(self)
+        data.pop("inflight", None)
+        return data
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> MemberState:
-        """Rehydrate, ignoring keys written by other versions."""
-        known = {f for f in cls.__dataclass_fields__}
+        """Rehydrate, ignoring keys written by other versions.
+
+        ``inflight`` is runtime-only: a crash must not restore a member as
+        busy forever, which would then block every midnight roll.
+        """
+        known = {f for f in cls.__dataclass_fields__} - {"inflight"}
         return cls(**{k: v for k, v in data.items() if k in known})
 
 
@@ -290,7 +300,9 @@ class UsageStore:
     def __init__(self, hass: HomeAssistant, entry_id: str) -> None:
         """Initialise the store for one config entry."""
         self._hass = hass
-        self._store = PoolStore(hass, STORAGE_VERSION, f"{DOMAIN}.{entry_id}")
+        self._store = PoolStore(
+            hass, STORAGE_VERSION, STORAGE_KEY_TEMPLATE.format(entry_id=entry_id)
+        )
         self.state = PoolState()
 
     async def async_load(self) -> PoolState:
@@ -379,14 +391,29 @@ class UsageStore:
         Stamping when the member is picked, rather than when it succeeds,
         matters: an unstamped state looks like it belongs to an earlier day,
         so the next day roll would erase the failure just recorded against it.
+        An in-flight member keeps the day it started on, so a midnight roll
+        cannot relabel yesterday's counters as today's.
         """
         state = self.state.member(key)
-        state.day = self.today(now)
+        current = self.today(now)
+        if state.inflight:
+            if not state.day:
+                state.day = current
+            return state
+        if state.day != current:
+            state.reset_day(current)
         return state
 
     def roll_day(self, now: datetime | None = None) -> bool:
-        """Zero counters whose stored day is not today. Returns True if rolled."""
+        """Zero counters whose stored day is not today. Returns True if rolled.
+
+        Members with an in-flight request are left alone: wiping them would
+        drop the attempt already charged and let a later success increment
+        calls_today against requests_today of 0.
+        """
         current = self.today(now)
+        if any(state.inflight for state in self.state.members.values()):
+            return False
         rolled = False
         for state in self.state.members.values():
             if state.day != current:
@@ -400,10 +427,6 @@ class UsageStore:
             self.state.stats.reset_day(current)
             rolled = True
         return rolled
-
-    def is_new_day(self, stored_day: str, now: datetime | None = None) -> bool:
-        """Whether a stored day marker predates the current local day."""
-        return stored_day != self.today(now)
 
 
 def parse_iso(value: str | None) -> datetime | None:

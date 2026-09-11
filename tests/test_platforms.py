@@ -260,6 +260,10 @@ async def test_conversation_pool_skips_an_error_response(hass: HomeAssistant) ->
     await publish_members(hass, "conversation", [member_a, member_b])
     await setup_pool(hass, "conversation")
 
+    agent = conversation.async_get_agent(hass, "conversation.test_pool")
+    assert agent is not None
+    assert agent.supported_languages == "*"
+
     result = await conversation.async_converse(
         hass,
         text="hello",
@@ -409,6 +413,25 @@ async def test_tts_pool_advertises_the_union_of_member_options(
     assert pool_entity.supported_options == ["voice", "speed"]
 
 
+async def test_tts_pool_falls_back_when_the_tts_component_is_missing(
+    hass: HomeAssistant,
+) -> None:
+    """An unloaded tts component must not crash capability discovery."""
+    assert await async_setup_component(hass, "tts", {})
+    await publish_members(hass, "tts", [FakeTTSMember(A, audio=b"a")])
+    await setup_pool(hass, "tts")
+    pool_entity = hass.data[tts.DATA_COMPONENT].get_entity("tts.test_pool")
+    assert pool_entity is not None
+    saved = hass.data[tts.DATA_COMPONENT]
+    hass.data.pop(tts.DATA_COMPONENT)
+    try:
+        assert pool_entity._member_entities() == []
+        assert pool_entity.default_language == hass.config.language
+        assert pool_entity.supported_languages == [hass.config.language]
+    finally:
+        hass.data[tts.DATA_COMPONENT] = saved
+
+
 # --- stt --------------------------------------------------------------------
 
 
@@ -543,7 +566,30 @@ async def test_stt_pool_does_not_replay_a_clipped_recording(
 
     # The first member was tried with what fitted; the second was never asked.
     assert member_a.calls == 1
-    assert len(member_a.received) <= 2048
+    assert len(member_a.received) == 2048
+    assert member_b.calls == 0
+
+
+async def test_stt_pool_keeps_the_prefix_when_the_first_chunk_overflows(
+    hass: HomeAssistant,
+) -> None:
+    """Dropping the whole first chunk used to send an empty recording."""
+    assert await async_setup_component(hass, "stt", {})
+    member_a = FakeSTTMember(A, error=CAPACITY)
+    member_b = FakeSTTMember(B, text="transcript from b")
+    await publish_members(hass, "stt", [member_a, member_b])
+    await setup_pool(hass, "stt", extra={CONF_STT_BUFFER_LIMIT: 2048})
+
+    async def stream() -> AsyncIterable[bytes]:
+        yield b"x" * 9000
+
+    pool_entity = stt.async_get_speech_to_text_entity(hass, "stt.test_pool")
+    assert pool_entity is not None
+    with pytest.raises(HomeAssistantError):
+        await pool_entity.async_process_audio_stream(audio_metadata(), stream())
+
+    assert member_a.calls == 1
+    assert member_a.received == b"x" * 2048
     assert member_b.calls == 0
 
 

@@ -68,8 +68,12 @@ class Verdict:
 
     @property
     def is_permanent(self) -> bool:
-        """Whether retrying this member can never succeed as configured."""
-        return self.kind in (FailureKind.AUTH, FailureKind.UNSUPPORTED)
+        """Whether retrying this member can never succeed as configured.
+
+        Only AUTH is applied as a disable. UNSUPPORTED is a property of this
+        request, not of the member, so it is retried on the next call.
+        """
+        return self.kind is FailureKind.AUTH
 
 
 # Ordered most-specific first: the first pattern that matches wins.
@@ -80,12 +84,23 @@ class Verdict:
 # member is never attempted again, not even as a last resort. Evidence of a
 # spent allowance therefore has to outrank a bare status code, or one busy
 # afternoon retires a working provider until somebody notices.
+#
+# A bare 429 / rate-limit is pace, not a spent daily allowance: it matches
+# CAPACITY (cooldown) unless the message also names quota or billing.
 _PATTERNS: tuple[tuple[FailureKind, re.Pattern[str]], ...] = (
     (
         FailureKind.QUOTA,
         re.compile(
-            r"\b429\b|resource[ _]exhausted|insufficient[ _]quota|quota"
-            r"|rate[ _-]?limit|too[ _]many[ _]requests|billing",
+            r"resource[ _]exhausted|insufficient[ _]quota|\bquota\b|billing",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        FailureKind.CAPACITY,
+        re.compile(
+            r"\b429\b|\b503\b|unavailable|high[ _]demand|overload|capacity"
+            r"|model[ _]is[ _]busy|try[ _]again[ _]later"
+            r"|rate[ _-]?limit|too[ _]many[ _]requests",
             re.IGNORECASE,
         ),
     ),
@@ -107,14 +122,6 @@ _PATTERNS: tuple[tuple[FailureKind, re.Pattern[str]], ...] = (
         ),
     ),
     (
-        FailureKind.CAPACITY,
-        re.compile(
-            r"\b503\b|unavailable|high[ _]demand|overload|capacity"
-            r"|model[ _]is[ _]busy|try[ _]again[ _]later",
-            re.IGNORECASE,
-        ),
-    ),
-    (
         FailureKind.TRANSIENT,
         re.compile(
             r"\b500\b|\b502\b|\b504\b|timed?[ _]?out|timeout|internal[ _]error"
@@ -131,7 +138,10 @@ def classify(error: BaseException | str) -> Verdict:
     Accepts an exception or a bare message so the classifier stays trivially
     testable without constructing Home Assistant error types.
     """
-    if isinstance(error, TimeoutError):
+    if isinstance(error, TimeoutError) and not str(error).strip():
+        # asyncio.timeout() raises a bare TimeoutError. A provider that
+        # raises TimeoutError with a message is classified from the text,
+        # so "the pool gave up" and "the server said timeout" stay apart.
         return Verdict(FailureKind.TIMEOUT, "timed out")
 
     message = str(error).strip()

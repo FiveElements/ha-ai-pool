@@ -150,6 +150,21 @@
     },
     "not_a_member": {
       "message": "{member} is not a member of {pool}."
+    },
+    "no_usable_member": {
+      "message": "{pool} has no member that can serve this {description}."
+    },
+    "all_members_failed": {
+      "message": "{pool} could not serve this {description} after {attempts} attempt(s)."
+    },
+    "conversation_member_error": {
+      "message": "Conversation member {member} returned an error response: {speech}"
+    },
+    "stt_entity_not_found": {
+      "message": "Speech-to-text entity {member} was not found."
+    },
+    "stt_member_error": {
+      "message": "Speech-to-text member {member} returned an error."
     }
   }
 }

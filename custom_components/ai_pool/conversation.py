@@ -10,6 +10,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import intent
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
+from .const import DOMAIN
 from .entity import AIPoolEntity
 from .pool import AIPoolConfigEntry
 
@@ -63,7 +64,12 @@ class AIPoolConversationEntity(AIPoolEntity, conversation.ConversationEntity):
                 # broken member and never reach a working one.
                 speech = result.response.speech.get("plain", {}).get("speech", "")
                 raise HomeAssistantError(
-                    f"conversation member {member} returned an error response: {speech}"
+                    translation_domain=DOMAIN,
+                    translation_key="conversation_member_error",
+                    translation_placeholders={
+                        "member": member,
+                        "speech": str(speech)[:255],
+                    },
                 )
             return result
 

@@ -8,6 +8,7 @@ saturated provider's door.
 
 import asyncio
 from datetime import timedelta
+from unittest.mock import patch
 
 import pytest
 from homeassistant.config_entries import ConfigEntryState, ConfigSubentry
@@ -22,6 +23,7 @@ from pytest_homeassistant_custom_component.common import (
     async_capture_events,
 )
 
+from custom_components.ai_pool.binary_sensor import AIPoolNoHealthyMemberSensor
 from custom_components.ai_pool.const import (
     CONF_COOLDOWN,
     CONF_DAILY_LIMIT,
@@ -53,6 +55,11 @@ from custom_components.ai_pool.models import (
     shared_models,
 )
 from custom_components.ai_pool.pool import AIPool, AllMembersFailedError
+from custom_components.ai_pool.sensor import (
+    AIPoolCallsSensor,
+    AIPoolLatencySensor,
+    _member_label,
+)
 from custom_components.ai_pool.store import parse_iso
 
 GOOGLE_503 = '{"error": {"code": 503, "status": "UNAVAILABLE"}}'
@@ -154,6 +161,49 @@ async def test_member_model_reads_the_config_entry(hass: HomeAssistant) -> None:
     assert member_model(hass, entity.entity_id) == "models/from-data"
     # An entity nothing knows about carries no conclusion.
     assert member_model(hass, "ai_task.not_registered") is None
+
+
+async def test_member_model_is_none_when_the_config_entry_is_gone(
+    hass: HomeAssistant,
+) -> None:
+    """A leftover registry row must not invent a model from a missing entry."""
+    provider = MockConfigEntry(
+        domain="fake_provider", data={"chat_model": "models/from-data"}
+    )
+    provider.add_to_hass(hass)
+    entity = er.async_get(hass).async_get_or_create(
+        "ai_task", "fake_provider", "unique-gone", config_entry=provider
+    )
+    await hass.config_entries.async_remove(provider.entry_id)
+    assert member_model(hass, entity.entity_id) is None
+
+
+async def test_member_model_is_none_when_the_owning_entry_cannot_be_read(
+    hass: HomeAssistant,
+) -> None:
+    """A registry row pointing at a missing config entry concludes nothing."""
+    provider = MockConfigEntry(
+        domain="fake_provider", data={"chat_model": "models/from-data"}
+    )
+    provider.add_to_hass(hass)
+    entity = er.async_get(hass).async_get_or_create(
+        "ai_task", "fake_provider", "unique-stale", config_entry=provider
+    )
+
+    with patch.object(hass.config_entries, "async_get_entry", return_value=None):
+        assert member_model(hass, entity.entity_id) is None
+
+
+async def test_member_model_is_none_when_no_model_key_is_set(
+    hass: HomeAssistant,
+) -> None:
+    """Providers that do not name the model conclude nothing."""
+    provider = MockConfigEntry(domain="fake_provider", data={"api_key": "k"})
+    provider.add_to_hass(hass)
+    entity = er.async_get(hass).async_get_or_create(
+        "ai_task", "fake_provider", "unique-blank", config_entry=provider
+    )
+    assert member_model(hass, entity.entity_id) is None
 
 
 async def test_member_model_prefers_the_subentry(hass: HomeAssistant) -> None:
@@ -407,7 +457,9 @@ async def test_an_auth_failure_no_longer_retires_a_member(
     assert rows[A].status == STATUS_DISABLED
 
     # Reloading the entry is the user saying "try again", and it is the only
-    # escape a persisted flag would otherwise have.
+    # escape a persisted flag would otherwise have. Save first: a new AIPool
+    # reads storage, and a delayed write would leave the disable in memory.
+    await pool.store.async_save()
     reloaded = AIPool(hass, entry)
     await reloaded.async_setup()
     rows = {row.entity_id: row for row in reloaded.snapshot()}
@@ -715,11 +767,15 @@ async def test_yesterdays_traffic_does_not_look_like_exhaustion(
     state = pool.store.state.member(A)
     state.day = "2000-01-01"
     state.calls = 50
+    pool.store.state.stats.day = "2000-01-01"
+    pool.store.state.stats.requests = 9
 
     member = pool.members[0]
     assert member.daily_limit == 50
     # Fifty calls, but not today's fifty.
     assert pool.member_status(member) == STATUS_HEALTHY
+    assert pool.snapshot()[0].calls_today == 0
+    assert pool.routing_snapshot()["requests_today"] == 0
 
 
 async def test_rotation_stays_even_while_a_member_sits_out(
@@ -841,3 +897,55 @@ async def test_the_duplicate_model_repair_does_not_outlive_the_pool(
     assert await hass.config_entries.async_remove(entry.entry_id)
     await hass.async_block_till_done()
     assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+
+
+def test_member_label_falls_back_to_the_registry(hass: HomeAssistant) -> None:
+    """friendly_name is nicer, the registry name is the next best thing."""
+    registry = er.async_get(hass)
+    item = registry.async_get_or_create(
+        "ai_task", "fake_provider", "unique-label", suggested_object_id="labelled"
+    )
+    registry.async_update_entity(item.entity_id, name="Pretty member")
+    assert _member_label(hass, item.entity_id) == "Pretty member"
+    assert _member_label(hass, "ai_task.unknown") == "ai_task.unknown"
+
+
+async def test_member_sensors_go_unknown_when_the_row_is_gone(
+    hass: HomeAssistant, available
+) -> None:
+    """A sensor for a member that left must not invent today's counters."""
+    available(A)
+    pool = await make_pool(hass, build_entry([A]))
+    calls = AIPoolCallsSensor(pool, pool.entry, "ai_task.gone", "gone")
+    assert calls.native_value is None
+    assert calls.extra_state_attributes == {}
+    latency = AIPoolLatencySensor(pool, pool.entry, "ai_task.gone", "gone")
+    assert latency.native_value is None
+    assert latency.extra_state_attributes == {}
+
+
+async def test_latency_sensor_exposes_the_spread_behind_the_last_value(
+    hass: HomeAssistant, available
+) -> None:
+    """The attributes exist so a dashboard can chart more than the last call."""
+    available(A)
+
+    async def run(member: str) -> str:
+        return "ok"
+
+    pool = await make_pool(hass, build_entry([A]))
+    await pool.async_execute(run)
+    latency = AIPoolLatencySensor(pool, pool.entry, A, "A")
+    assert latency.native_value is not None
+    attributes = latency.extra_state_attributes
+    assert attributes["samples_today"] == 1
+    assert "average_today" in attributes
+
+
+async def test_problem_sensor_is_unknown_for_an_empty_pool(
+    hass: HomeAssistant,
+) -> None:
+    """Nothing is broken; the pool was simply never given anyone to route to."""
+    pool = await make_pool(hass, build_entry([]))
+    sensor = AIPoolNoHealthyMemberSensor(pool, pool.entry)
+    assert sensor.is_on is None

@@ -33,14 +33,14 @@ proportionally more room.
 
 ## Failure handling
 
-| Provider says                                | Classified as | Consequence                       |
-| -------------------------------------------- | ------------- | --------------------------------- |
-| `429`, `RESOURCE_EXHAUSTED`, quota, billing  | quota         | Out until the local day rolls     |
-| `503`, `UNAVAILABLE`, high demand, overload  | capacity      | Cooldown, then eligible again     |
-| `500`, `502`, `504`, timeout, connection     | transient     | Next member, no penalty           |
-| `401`, `403`, invalid API key                | auth          | Disabled; retrying cannot help    |
-| `400`, not supported, response schema        | unsupported   | Next member                       |
-| anything else                                | unknown       | Next member, recorded for triage  |
+| Provider says                                         | Classified as | Consequence                       |
+| ----------------------------------------------------- | ------------- | --------------------------------- |
+| `RESOURCE_EXHAUSTED`, quota, billing                  | quota         | Out until the local day rolls     |
+| `429`, `503`, rate-limit, high demand, overload       | capacity      | Cooldown, then eligible again     |
+| `500`, `502`, `504`, timeout, connection              | transient     | Next member, no penalty           |
+| `401`, `403`, invalid API key                         | auth          | Disabled; retrying cannot help    |
+| `400`, not supported, response schema                 | unsupported   | Next member                       |
+| anything else                                         | unknown       | Next member, recorded for triage  |
 
 Home Assistant flattens provider errors into a single exception type, so the
 status is only recoverable from the message text. That is why classification is

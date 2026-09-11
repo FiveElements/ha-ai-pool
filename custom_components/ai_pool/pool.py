@@ -31,7 +31,6 @@ from .const import (
     CONF_STRATEGY,
     CONF_TIMEOUT,
     CONF_WEIGHT,
-    CURSOR_MODULUS,
     DEFAULT_COOLDOWN,
     DEFAULT_DAILY_LIMIT,
     DEFAULT_MAX_ATTEMPTS,
@@ -223,7 +222,7 @@ class AIPool:
             ):
                 reset.append(entity_id)
             state.clear_penalties()
-            if clear_counters:
+            if clear_counters and not state.inflight:
                 state.reset_day(today)
         await self.store.async_save()
         self._notify()
@@ -395,17 +394,20 @@ class AIPool:
         call sites - the request path, where it must be exact, and a midnight
         trigger, so displays are right without anyone asking.
         """
+        today = self.store.today()
         result: list[MemberView] = []
         for member in self.members:
             state = self.store.state.member(member.entity_id)
+            fresh = state.day == today
+            calls = state.calls if fresh else 0
+            failures = state.failures if fresh else 0
+            requests = state.requests if fresh else 0
             remaining: int | None = None
             if member.daily_limit:
-                remaining = max(member.daily_limit - state.calls, 0)
-            # Against the provider's own counter, which a refusal also spends,
-            # so this is the pessimistic reading of the same allowance.
+                remaining = max(member.daily_limit - calls, 0)
             rpd_remaining: int | None = None
             if member.daily_limit:
-                rpd_remaining = max(member.daily_limit - state.requests, 0)
+                rpd_remaining = max(member.daily_limit - requests, 0)
             per_minute = state.requests_last_minute()
             rpm_remaining: int | None = None
             if member.rpm_limit:
@@ -415,30 +417,30 @@ class AIPool:
                     entity_id=member.entity_id,
                     status=self.member_status(member),
                     model=self.member_model(member.entity_id),
-                    calls_today=state.calls,
-                    failures_today=state.failures,
+                    calls_today=calls,
+                    failures_today=failures,
                     daily_limit=member.daily_limit or None,
                     remaining=remaining,
-                    requests_today=state.requests,
+                    requests_today=requests,
                     rpd_remaining=rpd_remaining,
                     requests_last_minute=per_minute,
                     rpm_limit=member.rpm_limit or None,
                     rpm_remaining=rpm_remaining,
-                    input_chars_today=state.input_chars,
+                    input_chars_today=state.input_chars if fresh else 0,
                     input_chars_last_minute=state.input_chars_last_minute(),
                     weight=member.weight,
                     cooldown_until=state.cooldown_until,
                     cooldown_strikes=state.cooldown_strikes,
                     last_error=state.last_error,
                     last_success=state.last_success,
-                    failures_by_kind=dict(state.failures_by_kind),
-                    success_rate=_rounded(state.success_rate, 1),
+                    failures_by_kind=dict(state.failures_by_kind) if fresh else {},
+                    success_rate=_rounded(state.success_rate, 1) if fresh else None,
                     latency_last=_rounded(state.latency_last),
-                    latency_average=_rounded(state.latency_average),
-                    latency_min=_rounded(state.latency_min),
-                    latency_max=_rounded(state.latency_max),
+                    latency_average=_rounded(state.latency_average) if fresh else None,
+                    latency_min=_rounded(state.latency_min) if fresh else None,
+                    latency_max=_rounded(state.latency_max) if fresh else None,
                     latency_recent_average=_rounded(state.latency_recent_average),
-                    latency_samples=state.latency_count,
+                    latency_samples=state.latency_count if fresh else 0,
                 )
             )
         return result
@@ -451,15 +453,19 @@ class AIPool:
         would buy nothing.
         """
         stats = self.store.state.stats
+        today = self.store.today()
+        fresh = stats.day == today
         statuses = [self.member_status(member) for member in self.members]
         return {
-            "requests_today": stats.requests,
-            "served_today": stats.served,
-            "failed_today": stats.failures,
-            "attempts_today": stats.attempts,
-            "fallbacks_today": stats.fallbacks,
-            "fallback_rate": _rounded(stats.fallback_rate, 1),
-            "attempts_per_request": _rounded(stats.attempts_per_request, 2),
+            "requests_today": stats.requests if fresh else 0,
+            "served_today": stats.served if fresh else 0,
+            "failed_today": stats.failures if fresh else 0,
+            "attempts_today": stats.attempts if fresh else 0,
+            "fallbacks_today": stats.fallbacks if fresh else 0,
+            "fallback_rate": _rounded(stats.fallback_rate, 1) if fresh else None,
+            "attempts_per_request": (
+                _rounded(stats.attempts_per_request, 2) if fresh else None
+            ),
             "last_attempts": stats.last_attempts,
             "last_member": stats.last_member,
             "members_total": len(self.members),
@@ -491,15 +497,18 @@ class AIPool:
     def _ordered(self, members: list[MemberConfig]) -> list[MemberConfig]:
         """Apply the configured strategy to a group of members."""
         by_key = {member.entity_id: member for member in members}
-        candidates = [
-            Candidate(
-                key=member.entity_id,
-                weight=member.weight,
-                daily_limit=member.daily_limit,
-                used_today=self.store.state.member(member.entity_id).calls,
+        today = self.store.today()
+        candidates: list[Candidate] = []
+        for member in members:
+            state = self.store.state.member(member.entity_id)
+            candidates.append(
+                Candidate(
+                    key=member.entity_id,
+                    weight=member.weight,
+                    daily_limit=member.daily_limit,
+                    used_today=state.calls if state.day == today else 0,
+                )
             )
-            for member in members
-        ]
         ordered = order_candidates(candidates, self.strategy, self.store.state.cursor)
         return [by_key[candidate.key] for candidate in ordered]
 
@@ -532,16 +541,32 @@ class AIPool:
         queue = self._ordered(preferred) + self._ordered(last_resort)
 
         if not queue:
+            self._record_request(0, None, served=False)
+            self.store.async_schedule_save()
+            self._fire(
+                EVENT_EXHAUSTED,
+                attempts=0,
+                description=description,
+                members=0,
+            )
+            self._notify()
             raise AllMembersFailedError(
-                f"Pool {self.entry.title}: no usable member for {description}"
+                translation_domain=DOMAIN,
+                translation_key="no_usable_member",
+                translation_placeholders={
+                    "pool": self.entry.title,
+                    "description": description,
+                },
             )
 
         # Advanced by one, independently of the queue length. Taking it modulo
         # the queue used to skew the rotation the moment a member sat out: with
         # three members and one in cooldown the cursor cycled 0,1,2 over a
         # two-member group, so offsets ran 0,1,0,0,1,0 and one member served
-        # two calls in three.
-        self.store.state.cursor = (self.store.state.cursor + 1) % CURSOR_MODULUS
+        # two calls in three. Unbounded increment: wrapping on 2520 repeated
+        # an offset once a pool grew past ten members.
+        self.store.state.cursor += 1
+        self.store.async_schedule_save()
 
         limit = self.max_attempts if attempt_limit is None else max(attempt_limit, 1)
         attempts = 0
@@ -554,7 +579,9 @@ class AIPool:
         for member in queue:
             if attempts >= limit:
                 break
-            model = self.member_model(member.entity_id)
+            # Live lookup: the sensor cache is allowed to lag an options
+            # change, but a 503 skip must not still see the old model.
+            model = member_model(self.hass, member.entity_id)
             account = member_config_entry_id(self.hass, member.entity_id)
             if model and account and (account, model) in spent_account_models:
                 _LOGGER.debug(
@@ -567,52 +594,61 @@ class AIPool:
                 continue
             attempts += 1
             state = self.store.touch(member.entity_id)
-            # Recorded before the call: the provider charges the request
-            # against its limits when it receives it, not when it answers.
-            state.record_request(size)
-            started = time.monotonic()
+            state.inflight += 1
             try:
-                # A member that never answers would otherwise hold the whole
-                # request open: the deadline turns waiting into failing over.
-                async with asyncio.timeout(self.timeout or None):
-                    result = await run(member.entity_id)
-            except Exception as err:
-                verdict = classify(err)
-                last_error = err
-                state.record_failure(verdict.kind.value)
-                state.last_error = f"{verdict.kind.value}: {verdict.message}"[:255]
-                self._apply_verdict(member, verdict)
-                if verdict.kind is FailureKind.CAPACITY and model and account:
-                    spent_account_models.add((account, model))
-                _LOGGER.warning(
-                    "Pool %s: member %s failed %s (%s), trying next",
-                    self.entry.title,
-                    member.entity_id,
-                    description,
-                    verdict.kind.value,
-                )
-                self._fire(
-                    EVENT_FAILOVER,
-                    member=member.entity_id,
-                    model=model,
-                    kind=verdict.kind.value,
-                    message=verdict.message[:255],
-                    description=description,
-                    attempt=attempts,
-                )
-                continue
+                # Recorded before the call: the provider charges the request
+                # against its limits when it receives it, not when it answers.
+                state.record_request(size)
+                self.store.async_schedule_save()
+                started = time.monotonic()
+                try:
+                    # A member that never answers would otherwise hold the whole
+                    # request open: the deadline turns waiting into failing over.
+                    async with asyncio.timeout(self.timeout or None):
+                        result = await run(member.entity_id)
+                except Exception as err:
+                    verdict = classify(err)
+                    last_error = err
+                    state.record_failure(verdict.kind.value)
+                    state.last_error = f"{verdict.kind.value}: {verdict.message}"[:255]
+                    self._apply_verdict(member, verdict)
+                    if verdict.kind is FailureKind.CAPACITY and model and account:
+                        spent_account_models.add((account, model))
+                    _LOGGER.warning(
+                        "Pool %s: member %s failed %s (%s), trying next",
+                        self.entry.title,
+                        member.entity_id,
+                        description,
+                        verdict.kind.value,
+                    )
+                    self._fire(
+                        EVENT_FAILOVER,
+                        member=member.entity_id,
+                        model=model,
+                        kind=verdict.kind.value,
+                        message=verdict.message[:255],
+                        description=description,
+                        attempt=attempts,
+                    )
+                    self.store.async_schedule_save()
+                    continue
 
-            state.calls += 1
-            state.record_latency(time.monotonic() - started)
-            state.last_success = dt_util.utcnow().isoformat()
-            state.cooldown_until = None
-            # A success is the only evidence that the provider has recovered,
-            # so it is what resets the escalating cooldown.
-            state.cooldown_strikes = 0
-            self._record_request(attempts, member.entity_id, served=True)
-            self.store.async_schedule_save()
-            self._notify()
-            return result
+                state.calls += 1
+                state.record_latency(time.monotonic() - started)
+                state.last_success = dt_util.utcnow().isoformat()
+                state.cooldown_until = None
+                # A success is the only evidence that the provider has recovered,
+                # so it is what resets the escalating cooldown.
+                state.cooldown_strikes = 0
+                self._record_request(attempts, member.entity_id, served=True)
+                self.store.async_schedule_save()
+                self._notify()
+                return result
+            finally:
+                state.inflight = max(0, state.inflight - 1)
+                if state.inflight == 0 and self.store.roll_day():
+                    self.store.async_schedule_save()
+                    self._notify()
 
         self._record_request(attempts, None, served=False)
         self.store.async_schedule_save()
@@ -624,8 +660,13 @@ class AIPool:
         )
         self._notify()
         raise AllMembersFailedError(
-            f"Pool {self.entry.title}: all {attempts} attempted member(s) failed "
-            f"for {description}"
+            translation_domain=DOMAIN,
+            translation_key="all_members_failed",
+            translation_placeholders={
+                "pool": self.entry.title,
+                "description": description,
+                "attempts": str(attempts),
+            },
         ) from last_error
 
     @callback

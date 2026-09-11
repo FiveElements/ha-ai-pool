@@ -89,6 +89,18 @@ def test_timeout_exception_has_its_own_kind() -> None:
     assert verdict.is_permanent is False
 
 
+def test_a_provider_timeout_is_not_the_pool_deadline() -> None:
+    """A TimeoutError with a message came from the member, not asyncio.timeout."""
+    verdict = classify(TimeoutError("The read operation timed out"))
+    assert verdict.kind is FailureKind.TRANSIENT
+
+
+def test_unsupported_is_not_a_permanent_disable() -> None:
+    verdict = classify("response_schema is not supported")
+    assert verdict.kind is FailureKind.UNSUPPORTED
+    assert verdict.is_permanent is False
+
+
 def test_exception_instances_are_accepted() -> None:
     assert classify(RuntimeError(GOOGLE_429)).kind is FailureKind.QUOTA
 
@@ -113,10 +125,11 @@ def test_every_verdict_allows_trying_the_next_member() -> None:
             '"PERMISSION_DENIED"}}',
             FailureKind.QUOTA,
         ),
-        ("403 rateLimitExceeded", FailureKind.QUOTA),
+        ("403 rateLimitExceeded", FailureKind.CAPACITY),
         # With no quota evidence, a 403 is still an authentication problem.
         ("403 Forbidden", FailureKind.AUTH),
         ("403 The caller does not have permission", FailureKind.AUTH),
+        ("429 Too Many Requests", FailureKind.CAPACITY),
     ],
 )
 def test_quota_evidence_outranks_a_bare_status_code(

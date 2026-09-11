@@ -13,6 +13,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.typing import ConfigType
 
+from .config_flow import _pool_key
 from .const import (
     ATTR_CLEAR_COUNTERS,
     ATTR_MEMBER,
@@ -133,12 +134,33 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 async def async_migrate_entry(hass: HomeAssistant, entry: AIPoolConfigEntry) -> bool:
     """Bring a config entry forward to the current schema.
 
-    Nothing to rewrite yet, and that is exactly why this is here: without the
-    hook, the first version bump would fail every existing entry with no way
-    back. Reject a version from the future rather than guess at it - the entry
-    then shows as needing a newer Home Assistant instead of misreading data.
+    Version 1 left unique_id unset on some restored entries. Home Assistant's
+    uniqueness check ignores unique_id=None, so two pools over the same
+    members could both load and each believe they held the whole allowance.
+    Stamp the key from the member set. Reject a version from the future
+    rather than guess at it - the entry then shows as needing a newer Home
+    Assistant instead of misreading data.
     """
-    return entry.version <= CONFIG_VERSION
+    if entry.version > CONFIG_VERSION:
+        return False
+    if entry.version < 2:
+        data = {**entry.data, **entry.options}
+        members = data.get(CONF_MEMBERS) or []
+        pool_type = data.get(CONF_POOL_TYPE)
+        unique_id = entry.unique_id
+        if pool_type and members:
+            key = _pool_key(
+                str(pool_type),
+                [item["entity_id"] for item in members],
+            )
+            taken = any(
+                other.entry_id != entry.entry_id and other.unique_id == key
+                for other in hass.config_entries.async_entries(DOMAIN)
+            )
+            if not taken:
+                unique_id = key
+        hass.config_entries.async_update_entry(entry, unique_id=unique_id, version=2)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: AIPoolConfigEntry) -> bool:

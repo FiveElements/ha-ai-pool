@@ -150,6 +150,21 @@
     },
     "not_a_member": {
       "message": "{member} n'est pas membre de {pool}."
+    },
+    "no_usable_member": {
+      "message": "{pool} n'a aucun membre capable de servir cette demande ({description})."
+    },
+    "all_members_failed": {
+      "message": "{pool} n'a pas pu servir cette demande ({description}) après {attempts} tentative(s)."
+    },
+    "conversation_member_error": {
+      "message": "Le membre conversation {member} a renvoyé une réponse d'erreur : {speech}"
+    },
+    "stt_entity_not_found": {
+      "message": "L'entité speech-to-text {member} est introuvable."
+    },
+    "stt_member_error": {
+      "message": "Le membre speech-to-text {member} a renvoyé une erreur."
     }
   }
 }

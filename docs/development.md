@@ -19,7 +19,7 @@ Docker is the local stand-in for CI (Python 3.14, same harness pin as
 `requirements-test.txt`). See `AGENTS.md`.
 
 CI runs the full suite on Ubuntu, with `--cov-fail-under=95`, plus `hassfest`
-and HACS validation.
+and HACS validation. Pull requests also run `mkdocs build --strict`.
 
 ## Quality scale
 

@@ -47,7 +47,11 @@ class Candidate:
         weight = max(self.weight, 1)
         if not self.has_declared_limit:
             return 1.0 / (1.0 + self.used_today / weight)
-        return (self.daily_limit - self.used_today) / (self.daily_limit * weight)
+        # Multiply the remaining share, so a heavier member is treated as
+        # having more room — the same direction as the unlimited branch.
+        # Dividing used to send least_used traffic to the *light* member.
+        remaining = max(self.daily_limit - self.used_today, 0)
+        return remaining / self.daily_limit * weight
 
 
 def order_candidates(

@@ -14,13 +14,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Check the manifest version matches the tag
+      - name: Check the tag matches the advertised versions
         run: |
           tag="${GITHUB_REF_NAME#v}"
           manifest=$(python -c "import json;print(json.load(open('custom_components/ai_pool/manifest.json'))['version'])")
-          echo "tag=$tag manifest=$manifest"
-          if [ "$tag" != "$manifest" ]; then
-            echo "::error::Tag $tag does not match manifest version $manifest"
+          pyproject=$(python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          echo "tag=$tag manifest=$manifest pyproject=$pyproject"
+          if [ "$tag" != "$manifest" ] || [ "$tag" != "$pyproject" ]; then
+            echo "::error::Tag $tag does not match manifest $manifest / pyproject $pyproject"
             exit 1
           fi
 

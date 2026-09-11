@@ -2,7 +2,8 @@
 
 Each topic is a symptom, then why it happens, then what to do. The pool
 never hides a failure by going `unavailable`: if something cannot be
-served, the call raises and the problem sensor turns on.
+served, the call raises. The **No healthy member** problem sensor turns on
+when nobody is in the preferred group; last-resort members can still serve.
 
 ## The announcement never plays / the pipeline stops
 
@@ -13,10 +14,11 @@ error. The pool entity itself stays available.
 
 ### Description
 
-Every member refused or failed. The pool fires `ai_pool_exhausted` and
-turns on the **No healthy member** problem sensor. That is the intended
-loud failure: a declared limit is an estimate, and a call that fails
-beats one that never runs.
+Every member refused or failed. The pool fires `ai_pool_exhausted`. The
+**No healthy member** problem sensor may already have been on (nobody
+preferred) or may still be off if last-resort members were the only ones
+left. That is the intended loud failure: a declared limit is an estimate,
+and a call that fails beats one that never runs.
 
 ### Resolution
 
@@ -133,8 +135,9 @@ members."
 
 ### Description
 
-Two pools over the same members each keep their own counters and each
-believe they hold the whole allowance.
+Two pools over the **exact same** members each keep their own counters and
+each believe they hold the whole allowance. Order is not part of the
+identity. `[A, B]` and `[A, C]` are different pools; both count A.
 
 ### Resolution
 

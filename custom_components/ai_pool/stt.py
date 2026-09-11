@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import CONF_STT_BUFFER_LIMIT, DEFAULT_STT_BUFFER_LIMIT
+from .const import CONF_STT_BUFFER_LIMIT, DEFAULT_STT_BUFFER_LIMIT, DOMAIN
 from .entity import AIPoolEntity
 from .pool import AIPoolConfigEntry
 
@@ -129,7 +129,12 @@ class AIPoolSTTEntity(AIPoolEntity, stt.SpeechToTextEntity):
         buffer = bytearray()
         truncated = False
         async for chunk in stream:
-            if len(buffer) + len(chunk) > limit:
+            remaining = limit - len(buffer)
+            if remaining <= 0:
+                truncated = True
+                break
+            if len(chunk) > remaining:
+                buffer.extend(chunk[:remaining])
                 truncated = True
                 break
             buffer.extend(chunk)
@@ -153,19 +158,25 @@ class AIPoolSTTEntity(AIPoolEntity, stt.SpeechToTextEntity):
         async def run(member: str) -> stt.SpeechResult:
             entity = stt.async_get_speech_to_text_entity(self.hass, member)
             if entity is None:
-                raise HomeAssistantError(f"stt entity {member} not found")
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN,
+                    translation_key="stt_entity_not_found",
+                    translation_placeholders={"member": member},
+                )
             result = await entity.async_process_audio_stream(metadata, replay())
             if result.result is not stt.SpeechResultState.SUCCESS:
                 # A member reporting failure must not end the request: without
                 # this the pool would return an empty transcript from the first
                 # broken member and never reach a working one.
-                raise HomeAssistantError(f"stt member {member} returned an error")
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN,
+                    translation_key="stt_member_error",
+                    translation_placeholders={"member": member},
+                )
             return result
 
         # Audio bytes rather than characters: not comparable to a text
         # prompt, but the only measure of how much this request weighs.
-        # Audio bytes rather than characters: not comparable to a text prompt,
-        # but the only measure of how much this request weighs.
         #
         # A clipped recording gets one attempt and no failover. Handing the
         # same half-sentence to a second member cannot produce a better

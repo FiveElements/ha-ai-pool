@@ -5,7 +5,10 @@ from datetime import timedelta
 import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_capture_events,
+)
 
 from custom_components.ai_pool.const import (
     CONF_COOLDOWN,
@@ -17,6 +20,7 @@ from custom_components.ai_pool.const import (
     CONF_STRATEGY,
     CONF_WEIGHT,
     DOMAIN,
+    EVENT_EXHAUSTED,
     STATUS_COOLDOWN,
     STATUS_DISABLED,
     STATUS_EXHAUSTED,
@@ -322,13 +326,22 @@ async def test_counters_reset_on_a_new_local_day(
 
 
 async def test_empty_pool_raises(hass: HomeAssistant) -> None:
+    """An empty queue is still a total failure, and must not be silent."""
     pool = await make_pool(hass, build_entry([]))
+    exhausted = async_capture_events(hass, EVENT_EXHAUSTED)
 
     async def run(member: str) -> str:
         return "ok"
 
     with pytest.raises(AllMembersFailedError):
-        await pool.async_execute(run)
+        await pool.async_execute(run, description="weather")
+    await hass.async_block_till_done()
+
+    assert len(exhausted) == 1
+    assert exhausted[0].data["attempts"] == 0
+    assert exhausted[0].data["members"] == 0
+    assert exhausted[0].data["description"] == "weather"
+    assert pool.routing_snapshot()["failed_today"] == 1
 
 
 async def test_last_error_is_recorded_with_its_kind(
@@ -645,3 +658,10 @@ def test_request_log_survives_a_round_trip() -> None:
 
     assert restored.requests_last_minute(now=1010.0) == 1
     assert restored.input_chars_last_minute(now=1010.0) == 42
+
+
+def test_inflight_is_not_restored_from_storage() -> None:
+    """A crash must not leave a member stuck busy and blocking midnight rolls."""
+    restored = MemberState.from_dict({"calls": 3, "inflight": 9, "day": "2026-01-01"})
+    assert restored.calls == 3
+    assert restored.inflight == 0

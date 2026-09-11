@@ -197,7 +197,7 @@ def _limits_schema(member_ids: list[str], existing: list[dict[str, Any]]) -> vol
         ] = selector.NumberSelector(
             selector.NumberSelectorConfig(
                 min=0,
-                max=100000,
+                max=2000,
                 step=1,
                 unit_of_measurement="req/min",
                 mode=selector.NumberSelectorMode.BOX,
@@ -223,8 +223,27 @@ def _pool_key(pool_type: str, member_ids: list[str]) -> str:
     believe they hold the whole allowance, which is the double spend this
     integration exists to prevent. Order is not part of the identity - the
     same members in a different preference order are still the same members.
+    The set is exact: [A, B] and [A, C] are different pools, and both count
+    A against their own allowance.
     """
     return f"{pool_type}:" + ",".join(sorted(member_ids))
+
+
+def _entry_pool_key(entry: ConfigEntry) -> str | None:
+    """Identity a stored entry claims, even if unique_id was never stamped.
+
+    Home Assistant's uniqueness check ignores unique_id=None, so a v1 entry
+    restored without one would not collide with a new pool over the same
+    members. Fall back to computing the key from the member set.
+    """
+    if entry.unique_id:
+        return str(entry.unique_id)
+    data = {**entry.data, **entry.options}
+    members = data.get(CONF_MEMBERS) or []
+    pool_type = data.get(CONF_POOL_TYPE)
+    if not pool_type or not members:
+        return None
+    return _pool_key(str(pool_type), [item["entity_id"] for item in members])
 
 
 def _build_members(
@@ -339,7 +358,8 @@ class AIPoolConfigFlow(ConfigFlow, domain=DOMAIN):
                     (
                         other
                         for other in self.hass.config_entries.async_entries(DOMAIN)
-                        if other.unique_id == key and other.entry_id != entry.entry_id
+                        if _entry_pool_key(other) == key
+                        and other.entry_id != entry.entry_id
                     ),
                     None,
                 )
@@ -428,7 +448,7 @@ class AIPoolOptionsFlow(OptionsFlow):
                 (
                     entry
                     for entry in self.hass.config_entries.async_entries(DOMAIN)
-                    if entry.unique_id == key
+                    if _entry_pool_key(entry) == key
                     and entry.entry_id != self.config_entry.entry_id
                 ),
                 None,
@@ -437,7 +457,8 @@ class AIPoolOptionsFlow(OptionsFlow):
                 return self.async_show_form(
                     step_id="limits",
                     data_schema=_limits_schema(
-                        self._member_ids, self._draft.get(CONF_MEMBERS, [])
+                        self._member_ids,
+                        _build_members(self._member_ids, user_input),
                     ),
                     errors={"base": "duplicate_members"},
                     description_placeholders={"members": ", ".join(self._member_ids)},

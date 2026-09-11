@@ -1,10 +1,14 @@
-"""A problem sensor for a pool that cannot serve.
+"""A problem sensor for a pool with no healthy member.
 
 The failure this answers is the quiet one. When every member refuses, the call
 raises and whatever asked for it stops - an announcement simply never plays,
 and the only trace is in the automation trace. One entity that says "this pool
-has nothing healthy left" turns that into something a dashboard shows and an
-automation can notify about.
+has nobody in the preferred group" turns that into something a dashboard shows
+and an automation can notify about.
+
+It is not "the pool cannot serve". Exhausted, cooling or throttled members are
+still tried as last resort, so the sensor can be on while a call still
+succeeds.
 """
 
 from __future__ import annotations
@@ -18,7 +22,7 @@ from homeassistant.components.binary_sensor import (
 )
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import DOMAIN, STATUS_HEALTHY
@@ -42,7 +46,7 @@ async def async_setup_entry(
 
 
 class AIPoolNoHealthyMemberSensor(BinarySensorEntity):
-    """On when no member of the pool is in a state to serve."""
+    """On when no member of the pool is healthy (preferred)."""
 
     _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -62,6 +66,7 @@ class AIPoolNoHealthyMemberSensor(BinarySensorEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=entry.title,
+            entry_type=DeviceEntryType.SERVICE,
         )
 
     async def async_added_to_hass(self) -> None:
@@ -75,10 +80,11 @@ class AIPoolNoHealthyMemberSensor(BinarySensorEntity):
 
     @property
     def is_on(self) -> bool | None:
-        """Whether the pool has no healthy member left.
+        """Whether the pool has no healthy (preferred) member left.
 
-        An empty pool reports unknown rather than a problem: nothing is broken,
-        it was simply never given anything to route to.
+        Last-resort members can still serve. An empty pool reports unknown
+        rather than a problem: nothing is broken, it was simply never given
+        anything to route to.
         """
         members = self._pool.members
         if not members:

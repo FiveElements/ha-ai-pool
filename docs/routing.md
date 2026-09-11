@@ -17,8 +17,9 @@ account.
 
 !!! note "A 503 is this key's view"
 
-    A `429 RESOURCE_EXHAUSTED` is your limit. A `503 UNAVAILABLE` / high demand
-    is this key being told the model is busy. Another account on the same
+    A `429 RESOURCE_EXHAUSTED` / quota message is your limit. A bare `429 Too
+    Many Requests` or a `503 UNAVAILABLE` / high demand is this key being told
+    the model is busy. Another account on the same
     model is still worth asking. The pool only skips other members of **the
     same account** on that model for the rest of *this* request. A skip is
     not charged as an attempt.

@@ -143,14 +143,14 @@ proportionally more room.
 
 ### Failure handling
 
-| Provider says                                | Classified as | Consequence                       |
-| -------------------------------------------- | ------------- | --------------------------------- |
-| `429`, `RESOURCE_EXHAUSTED`, quota, billing  | quota         | Out until the local day rolls     |
-| `503`, `UNAVAILABLE`, high demand, overload  | capacity      | Cooldown, then eligible again     |
-| `500`, `502`, `504`, timeout, connection     | transient     | Next member, no penalty           |
-| `401`, `403`, invalid API key                | auth          | Disabled; retrying cannot help    |
-| `400`, not supported, response schema        | unsupported   | Next member                       |
-| anything else                                | unknown       | Next member, recorded for triage  |
+| Provider says                                         | Classified as | Consequence                       |
+| ----------------------------------------------------- | ------------- | --------------------------------- |
+| `RESOURCE_EXHAUSTED`, quota, billing                  | quota         | Out until the local day rolls     |
+| `429`, `503`, rate-limit, high demand, overload       | capacity      | Cooldown, then eligible again     |
+| `500`, `502`, `504`, timeout, connection              | transient     | Next member, no penalty           |
+| `401`, `403`, invalid API key                         | auth          | Disabled; retrying cannot help    |
+| `400`, not supported, response schema                 | unsupported   | Next member                       |
+| anything else                                         | unknown       | Next member, recorded for triage  |
 
 Home Assistant flattens provider errors into a single exception type, so the
 status is only recoverable from the message text. That is why classification is
@@ -215,8 +215,9 @@ allowances; and "specified rate limits are not guaranteed and actual capacity
 may vary", so a member can refuse while well inside its declared limit.
 
 That last point is why `failures_capacity` and `failures_quota` are counted
-separately. A `429 RESOURCE_EXHAUSTED` is your limit; a `503 UNAVAILABLE` is
-this key being told the model is busy. Another account on the same model is
+separately. A `429 RESOURCE_EXHAUSTED` / quota message is your limit; a bare
+`429 Too Many Requests` or a `503 UNAVAILABLE` is this key being told the model
+is busy. Another account on the same model is
 still worth asking: that 503 is not a signal about the other keys. The pool
 only skips other members of **the same account** on that model for the rest
 of *this* request. Spreading daily allowance across accounts remains the
@@ -244,8 +245,10 @@ conclusion, never a false match.
 Two things watch for the failure that used to be silent - every member refusing,
 the call raising, and an announcement simply never playing.
 
-A **problem sensor** per pool, on when no member is in a state to serve, with
-each member's status as attributes. It is polled rather than event-driven,
+A **problem sensor** per pool, on when no member is healthy (preferred), with
+each member's status as attributes. Exhausted, cooling or throttled members are
+still tried as last resort, so the sensor can be on while a call still
+succeeds. It is polled rather than event-driven,
 because two of the three ways it changes - a cooldown expiring, a member entity
 going unavailable - happen without the pool being involved.
 
@@ -341,7 +344,7 @@ wiki page. The short list:
 | High fallback rate | First member's `failures_<kind>` |
 | Missing latency sensors | Disabled by default — enable in the entity registry |
 | Truncated STT transcript | Raise the audio retry buffer; clipped audio gets no failover |
-| Cannot add a second pool over the same members | That would double-count the allowance |
+| Cannot add a second pool over the same members | That would double-count the allowance. Identity is the exact set: `[A, B]` and `[A, C]` are different pools. |
 | Cannot change pool type | Create a new pool; type decides which platform loads |
 
 Configure or **Reconfigure** on the config entry edits members and policy
@@ -388,8 +391,10 @@ Linux and macOS**. On Windows the provider-independent tests still run:
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest tests/test_errors.py tests/test_strategies.py -q --noconftest
 ```
 
-CI runs the full suite on Ubuntu against every supported Home Assistant
-version, plus `hassfest` and HACS validation. The harness pins one Home
+CI runs the full suite on Ubuntu against the Home Assistant versions listed
+in `.github/workflows/ci.yml` (currently the declared floor, **2026.9.0**),
+plus `hassfest` and HACS validation. Pull requests also build the docs with
+`mkdocs build --strict`. The harness pins one Home
 Assistant version per release, so the matrix selects versions by harness
 version; `scripts/component_requirements.py` then reads the fronted components'
 own dependencies from the installed manifests, which keeps them right across

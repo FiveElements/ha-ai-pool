@@ -37,7 +37,8 @@ from the *installed* HA manifests — that is how the test job gets
 A second workflow (`.github/workflows/validate.yml`) runs `hassfest` and HACS
 validation, including a weekly cron. Pushes to `main` also publish the
 [Material for MkDocs](https://fiveelements.github.io/ha-ai-pool/) site
-(`.github/workflows/docs.yml`).
+(`.github/workflows/docs.yml`). Pull requests build the same site with
+`mkdocs build --strict` so a broken wiki link fails CI before it is published.
 
 ### Windows
 
@@ -117,12 +118,17 @@ These are deliberate and load-bearing; several have tests pinning them.
   a last-resort group and are still tried. Declared limits are the user's estimate, and
   "fails loudly" beats "never runs". The one exception is `disabled` (auth).
 - **QUOTA is matched before AUTH** in `_PATTERNS`. Providers return spent allowances as
-  `403` as readily as `429`, and AUTH is the only permanent verdict.
-- **The round-robin cursor advances by one modulo `CURSOR_MODULUS` (2520)**, not modulo
-  the live queue length — taking it modulo a shrinking group skews rotation.
-- **The day roll has exactly two call sites**: the request path (where it must be exact)
-  and a midnight `async_track_time_change`. Read paths (`snapshot`, `member_status`,
-  sensors) must stay pure — they compare against `store.today()` instead of mutating.
+  `403` as readily as `429`. A bare `429` / rate-limit is **CAPACITY** (cooldown);
+  quota / `RESOURCE_EXHAUSTED` / billing is the daily block. AUTH is the only
+  permanent verdict. UNSUPPORTED is not permanent.
+- **The round-robin cursor advances by one**, not modulo the live queue length and
+  not wrapping on 2520 — taking it modulo a shrinking group skews rotation, and
+  wrapping on 2520 repeated an offset once a pool grew past ten members.
+- **The day roll has two intended call sites** plus a drain: the request path (where
+  it must be exact), a midnight `async_track_time_change`, and after the last
+  in-flight attempt finishes so midnight cannot wipe a request still awaiting a
+  provider. Read paths (`snapshot`, `routing_snapshot`, `member_status`, sensors)
+  must stay pure — they compare against `store.today()` instead of mutating.
 - **`calls_today` (successes) and `requests_today` (every attempt) bracket the provider's
   own counter.** Routing uses the optimistic one on purpose.
 - **Cooldowns double per consecutive capacity refusal** up to `MAX_COOLDOWN`; only a
@@ -130,22 +136,30 @@ These are deliberate and load-bearing; several have tests pinning them.
 - **A capacity skip is per account, not per model.** A 503 / "high demand" on one API
   key does not implicate the other keys. Only other members of the same config entry on
   that model are skipped for the rest of *this* request. A skip is not charged as an
-  attempt. Unknown account or model concludes nothing (no skip).
+  attempt. Unknown account or model concludes nothing (no skip). The skip reads the
+  live model, not the sensor cache.
 - **The duplicate-model repair is the same shape.** Two accounts on `gemini-flash-latest`
   are the quota split; two entities of *one* config entry on that model are the same
   membership listed twice. `duplicate_models()` reads live `member_model` /
   `member_config_entry_id`, not the sensor cache — a repair that lags an options change
   used to keep warning about an account the user had just split.
+- **Pool identity is the exact member set** of one pool type. `[A, B]` and `[A, C]`
+  are different pools; both count A against their own allowance. Order is not part
+  of the identity.
 - **Reloading the entry re-admits disabled members** (`clear_disabled`), as does the
   `ai_pool.reset_member` service. That is the only escape from an auth disable.
 - **Unreadable model or account reports `None` and concludes nothing** — never a false
   duplicate match. `member_model()` is cached (`MODEL_CACHE_TTL`) because every sensor
-  asks for every member; the repair path must not use that cache.
+  asks for every member; the repair path and the capacity skip must not use that cache.
 - The pool excludes its own entities from member pickers (`_own_entities`), or a pool
   could contain itself.
 - **The pool entity stays available** when no member can serve. Trouble is the problem
   sensor and the events, not `unavailable` — a call must still be able to fail loudly.
-  Do not flip `entity-unavailable` to `done` by hiding the pool.
+  Do not flip `entity-unavailable` to `done` by hiding the pool. The problem sensor
+  means "no healthy (preferred) member", not "cannot serve": last-resort members are
+  still tried.
+- **An empty queue still fires `ai_pool_exhausted`.** A pool with no usable member
+  used to raise without the event automations watch.
 - **The pool entity is named with `_attr_name = entry.title`**, not `has_entity_name`.
   The TTS manager reads `entity.name` and refuses an engine whose name is unset;
   `has_entity_name` with `name=None` would do that, and a translation key would
@@ -153,7 +167,8 @@ These are deliberate and load-bearing; several have tests pinning them.
   `has_entity_name`.
 - **STT buffer: megabytes in the form, bytes in storage.** `_stt_buffer_mb` /
   `_policy_from_input` in `config_flow.py` are the conversion. The clip comparison
-  measures bytes. The field is only shown for `stt` pools.
+  measures bytes and **keeps the prefix** that fits. The field is only shown for `stt`
+  pools.
 - **Fallback rate is `None` (HA `unknown`) when `requests_today` is 0.** Zero percent
   would look like "the preference order is perfect" before anything has run.
 
@@ -177,8 +192,10 @@ is optional follow-up, not a merge blocker.
   comments that restate the code.
 - New user-facing strings go in both `translations/en.json` and `translations/fr.json`.
   Config-flow fields need `data_description` as well as `name`.
-- Storage and config-entry schemas both have migration hooks that currently do nothing —
-  they exist so the first version bump doesn't break entries. Extend them, don't remove.
+- Storage and config-entry schemas both have migration hooks. Config-entry
+  version 2 stamps `unique_id` from the member set. The storage hook currently
+  no-ops so the first storage version bump does not break counters. Extend them,
+  don't remove.
 - `README.md` is the user documentation and is unusually precise about what the
   integration can and cannot know (notably: no provider reports remaining quota, and
   token counts are unavailable — only characters). Keep new claims in it honest and

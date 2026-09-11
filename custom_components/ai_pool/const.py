@@ -56,11 +56,6 @@ DEFAULT_TIMEOUT: Final = 120
 # Ceiling for the doubling cooldown, so a provider having a bad day is retried
 # hourly rather than never.
 MAX_COOLDOWN: Final = 3600
-# The round-robin cursor advances independently of how many members are usable
-# right now, so rotation stays even while some sit out. It wraps on the lowest
-# common multiple of 1..10, which divides every group size a sane pool can
-# have, so wrapping never lands two calls on the same member.
-CURSOR_MODULUS: Final = 2520
 # How long a member's resolved model is trusted. It only changes when somebody
 # edits another integration, so noticing late costs nothing and it spares a
 # registry walk per member per sensor read.
@@ -94,7 +89,7 @@ ISSUE_DUPLICATE_MODEL: Final = "duplicate_model"
 
 # Config-entry schema version. Shared by the flow that stamps it and the
 # migration hook that has to recognise it, so neither can drift from the other.
-CONFIG_VERSION: Final = 1
+CONFIG_VERSION: Final = 2
 
 STORAGE_VERSION: Final = 1
 STORAGE_KEY_TEMPLATE: Final = DOMAIN + ".{entry_id}"

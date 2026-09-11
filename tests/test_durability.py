@@ -35,7 +35,7 @@ from custom_components.ai_pool.const import (
     STRATEGY_ROUND_ROBIN,
 )
 from custom_components.ai_pool.pool import AIPool
-from custom_components.ai_pool.store import UsageStore
+from custom_components.ai_pool.store import PoolStore, UsageStore
 
 A = "ai_task.member_a"
 B = "ai_task.member_b"
@@ -120,6 +120,60 @@ async def test_simultaneous_calls_lose_no_counter(
     assert routing["requests_today"] == 30
     assert routing["served_today"] == 30
     assert routing["attempts_today"] == 30
+
+
+async def test_day_roll_waits_for_an_in_flight_request(
+    hass: HomeAssistant, available
+) -> None:
+    """Midnight must not wipe the attempt already charged against a member."""
+    available(A)
+    pool = await make_pool(hass, build_entry([A]))
+    state = pool.store.touch(A)
+    state.calls = 7
+    state.inflight = 1
+    state.day = "2000-01-01"
+
+    assert pool.store.roll_day() is False
+    assert state.calls == 7
+
+    state.inflight = 0
+    assert pool.store.roll_day() is True
+    assert state.calls == 0
+
+
+async def test_an_in_flight_member_without_a_day_is_stamped(
+    hass: HomeAssistant, available
+) -> None:
+    """An unstamped in-flight member would otherwise look like yesterday."""
+    available(A)
+    pool = await make_pool(hass, build_entry([A]))
+    state = pool.store.state.member(A)
+    state.inflight = 1
+    state.day = ""
+    touched = pool.store.touch(A)
+    assert touched.day == pool.store.today()
+    assert touched.calls == 0
+
+
+async def test_a_quota_block_lifts_when_the_local_day_has_passed(
+    hass: HomeAssistant, available
+) -> None:
+    """blocked_until_day is a calendar stamp, not a cooldown timer."""
+    available(A)
+    pool = await make_pool(hass, build_entry([A]))
+    state = pool.store.touch(A)
+    state.blocked_until_day = "2000-01-01"
+    assert pool.store.roll_day() is True
+    assert state.blocked_until_day is None
+
+
+async def test_storage_migration_returns_data_untouched(
+    hass: HomeAssistant,
+) -> None:
+    """The hook must exist before the first storage version bump."""
+    store = PoolStore(hass, 1, "ai_pool.migrate")
+    payload = {"cursor": 3, "members": {}}
+    assert await store._async_migrate_func(1, 1, payload) == payload
 
 
 async def test_simultaneous_calls_still_rotate(hass: HomeAssistant, available) -> None:
@@ -350,4 +404,4 @@ async def test_weight_shifts_the_rotation(hass: HomeAssistant, available) -> Non
     for _ in range(12):
         await pool.async_execute(run)
 
-    assert served.count(A) != served.count(B)
+    assert served.count(B) > served.count(A)

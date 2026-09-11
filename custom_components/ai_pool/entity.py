@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity import Entity
 
 from .const import DOMAIN
@@ -35,5 +35,5 @@ class AIPoolEntity(Entity):
             name=entry.title,
             manufacturer="AI Pool",
             model=f"{pool.pool_type} pool",
-            entry_type=None,
+            entry_type=DeviceEntryType.SERVICE,
         )

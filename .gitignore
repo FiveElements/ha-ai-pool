@@ -12,3 +12,5 @@ build/
 *.egg-info/
 .DS_Store
 component-requirements.txt
+site/
+

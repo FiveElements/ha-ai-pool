@@ -24,6 +24,7 @@ python -m venv .venv
 .venv/bin/pytest tests/test_pool.py::test_name -q  # one test
 .venv/bin/ruff check custom_components tests
 .venv/bin/ruff format --check custom_components tests
+pip install -r requirements-docs.txt && mkdocs serve   # http://127.0.0.1:8000
 ```
 
 CI uses **Python 3.14** and pins `pytest-homeassistant-custom-component` in
@@ -33,7 +34,9 @@ from the *installed* HA manifests — that is how the test job gets
 `ai_task`/`tts`/`stt` importable without pinning their deps twice.
 
 A second workflow (`.github/workflows/validate.yml`) runs `hassfest` and HACS
-validation, including a weekly cron.
+validation, including a weekly cron. Pushes to `main` also publish the
+[Material for MkDocs](https://fiveelements.github.io/ha-ai-pool/) site
+(`.github/workflows/docs.yml`).
 
 ### Windows
 

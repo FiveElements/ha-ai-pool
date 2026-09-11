@@ -5,6 +5,7 @@ spread daily quotas and automatic failover when a provider refuses.
 
 [![CI](https://github.com/FiveElements/ha-ai-pool/actions/workflows/ci.yml/badge.svg)](https://github.com/FiveElements/ha-ai-pool/actions/workflows/ci.yml)
 [![Validate](https://github.com/FiveElements/ha-ai-pool/actions/workflows/validate.yml/badge.svg)](https://github.com/FiveElements/ha-ai-pool/actions/workflows/validate.yml)
+[![Docs](https://img.shields.io/badge/docs-Material_for_MkDocs-526CFE?logo=materialformkdocs)](https://fiveelements.github.io/ha-ai-pool/)
 
 A pool publishes **one** entity in the domain it fronts. Your automations call
 that entity and know nothing about the routing:

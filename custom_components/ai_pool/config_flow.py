@@ -6,13 +6,14 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant.config_entries import (
+    SOURCE_RECONFIGURE,
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
     OptionsFlow,
 )
 from homeassistant.const import CONF_NAME
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector
 
@@ -48,7 +49,7 @@ WEIGHT_PREFIX = "weight_"
 _BYTES_PER_MB = 1024 * 1024
 
 
-def _own_entities(hass) -> set[str]:
+def _own_entities(hass: HomeAssistant) -> set[str]:
     """Entity ids published by this integration.
 
     Excluded from member pickers so a pool can never contain itself, which
@@ -87,7 +88,7 @@ def _policy_from_input(user_input: dict[str, Any]) -> dict[str, Any]:
 
 
 def _members_schema(
-    hass,
+    hass: HomeAssistant,
     pool_type: str,
     defaults: dict[str, Any],
 ) -> vol.Schema:
@@ -252,6 +253,7 @@ class AIPoolConfigFlow(ConfigFlow, domain=DOMAIN):
         """Start with an empty draft."""
         self._draft: dict[str, Any] = {}
         self._member_ids: list[str] = []
+        self._existing_members: list[dict[str, Any]] = []
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -274,6 +276,32 @@ class AIPoolConfigFlow(ConfigFlow, domain=DOMAIN):
             }
         )
         return self.async_show_form(step_id="user", data_schema=schema)
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Edit members and policy of an existing pool without removing it.
+
+        Pool type stays: it decides which platform is loaded. Members,
+        strategy and allowances are the same fields as the options flow,
+        reached from Reconfigure on the entry rather than Configure.
+        """
+        del user_input
+        entry = self._get_reconfigure_entry()
+        current = {**entry.data, **entry.options}
+        self._existing_members = list(current.get(CONF_MEMBERS, []))
+        self._draft = {
+            CONF_NAME: entry.title,
+            CONF_POOL_TYPE: current[CONF_POOL_TYPE],
+            CONF_STRATEGY: current.get(CONF_STRATEGY, DEFAULT_STRATEGY),
+            CONF_COOLDOWN: current.get(CONF_COOLDOWN, DEFAULT_COOLDOWN),
+            CONF_MAX_ATTEMPTS: current.get(CONF_MAX_ATTEMPTS, DEFAULT_MAX_ATTEMPTS),
+            CONF_TIMEOUT: current.get(CONF_TIMEOUT, DEFAULT_TIMEOUT),
+            CONF_MEMBERS: [item["entity_id"] for item in self._existing_members],
+        }
+        if CONF_STT_BUFFER_LIMIT in current:
+            self._draft[CONF_STT_BUFFER_LIMIT] = current[CONF_STT_BUFFER_LIMIT]
+        return await self.async_step_members()
 
     async def async_step_members(
         self, user_input: dict[str, Any] | None = None
@@ -304,15 +332,33 @@ class AIPoolConfigFlow(ConfigFlow, domain=DOMAIN):
             data = dict(self._draft)
             data[CONF_MEMBERS] = _build_members(self._member_ids, user_input)
             title = data.pop(CONF_NAME)
-            await self.async_set_unique_id(
-                _pool_key(data[CONF_POOL_TYPE], self._member_ids)
-            )
+            key = _pool_key(data[CONF_POOL_TYPE], self._member_ids)
+            if self.source == SOURCE_RECONFIGURE:
+                entry = self._get_reconfigure_entry()
+                clash = next(
+                    (
+                        other
+                        for other in self.hass.config_entries.async_entries(DOMAIN)
+                        if other.unique_id == key and other.entry_id != entry.entry_id
+                    ),
+                    None,
+                )
+                if clash is not None:
+                    return self.async_abort(reason="already_configured")
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data=data,
+                    options={},
+                    unique_id=key,
+                )
+            await self.async_set_unique_id(key)
             self._abort_if_unique_id_configured()
             return self.async_create_entry(title=title, data=data)
 
+        existing = self._existing_members if self.source == SOURCE_RECONFIGURE else []
         return self.async_show_form(
             step_id="limits",
-            data_schema=_limits_schema(self._member_ids, []),
+            data_schema=_limits_schema(self._member_ids, existing),
             description_placeholders={"members": ", ".join(self._member_ids)},
         )
 

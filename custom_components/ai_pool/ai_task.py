@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 from homeassistant.components import ai_task, conversation
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .entity import AIPoolEntity
+from .pool import AIPoolConfigEntry
 
 PARALLEL_UPDATES = 0
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: AIPoolConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the pooled AI Task entity."""

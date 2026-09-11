@@ -1,0 +1,15 @@
+{
+  "entity": {
+    "sensor": {
+      "member_calls": {
+        "default": "mdi:counter"
+      },
+      "member_latency": {
+        "default": "mdi:timer-outline"
+      },
+      "pool_fallback_rate": {
+        "default": "mdi:call-split"
+      }
+    }
+  }
+}

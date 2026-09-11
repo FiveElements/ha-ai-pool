@@ -69,3 +69,25 @@ plus the routing policy and the pool-wide counters.
 Counters are persisted, so a restart at 18:00 does not hand a spent member a
 fresh allowance. Day counters reset on the local calendar day; the recent
 latency window does not.
+
+## Data updates
+
+The pool is not a polling integration. It does not fetch from a remote API on
+a timer.
+
+Counters, latency and the fallback rate update **when a call is routed** (the
+request path notifies listeners; diagnostic sensors do not poll). A restart
+does not reset today's counts: usage is persisted.
+
+The **problem sensor** is the exception. It polls once a minute, because a
+cooldown can expire or a member can go unavailable without the pool seeing a
+call.
+
+Day counters roll at local midnight and again on the next request if midnight
+was missed. Read paths (sensors, `snapshot`) never roll the day — they
+compare against today's date.
+
+There is no user-configurable scan interval for the routed platforms: a call
+is the update. Do not lower the problem sensor's poll in the hope of seeing
+quota sooner; the provider does not report remaining quota at all.
+

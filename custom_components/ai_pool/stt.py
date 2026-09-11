@@ -4,15 +4,16 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncIterable
+from typing import Any
 
 from homeassistant.components import stt
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import CONF_STT_BUFFER_LIMIT, DEFAULT_STT_BUFFER_LIMIT
 from .entity import AIPoolEntity
+from .pool import AIPoolConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ CHUNK = 4096
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: AIPoolConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the pooled speech-to-text entity."""
@@ -47,16 +48,16 @@ class AIPoolSTTEntity(AIPoolEntity, stt.SpeechToTextEntity):
                 found.append(entity)
         return found
 
-    def _union(self, attribute: str) -> list:
+    def _union(self, attribute: str) -> list[Any]:
         """Union of a member capability list, preserving order."""
-        values: list = []
+        values: list[Any] = []
         for entity in self._member_entities():
             for value in getattr(entity, attribute, None) or []:
                 if value not in values:
                     values.append(value)
         return values
 
-    def _intersection(self, attribute: str, fallback: list) -> list:
+    def _intersection(self, attribute: str, fallback: list[Any]) -> list[Any]:
         """Intersection of a member capability list.
 
         Audio format capabilities use an intersection, unlike languages: the
@@ -68,7 +69,7 @@ class AIPoolSTTEntity(AIPoolEntity, stt.SpeechToTextEntity):
         entities = self._member_entities()
         if not entities:
             return fallback
-        common: set | None = None
+        common: set[Any] | None = None
         for entity in entities:
             values = set(getattr(entity, attribute, None) or [])
             common = values if common is None else (common & values)

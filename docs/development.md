@@ -5,6 +5,7 @@ python -m venv .venv
 .venv/bin/pip install -r requirements-test.txt
 .venv/bin/pytest tests -q
 .venv/bin/ruff check custom_components tests
+.venv/bin/mypy custom_components/ai_pool
 ```
 
 The Home Assistant test harness imports `fcntl` and therefore **only runs on
@@ -26,8 +27,9 @@ Progress is tracked in
 [`quality_scale.yaml`](https://github.com/FiveElements/ha-ai-pool/blob/main/custom_components/ai_pool/quality_scale.yaml)
 against Home Assistant's
 [integration quality scale](https://developers.home-assistant.io/docs/core/integration-quality-scale/).
-The manifest currently declares **bronze**. Silver needs `test-coverage` marked
-`done` once the ≥95 % bar is accepted.
+The manifest currently declares **platinum**. Silver needs `test-coverage`
+(≥95 %) in CI (`--cov-fail-under=95`). Platinum adds `mypy --strict` on
+`custom_components/ai_pool`.
 
 Exemptions that are product decisions:
 

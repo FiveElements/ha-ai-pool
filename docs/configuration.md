@@ -14,6 +14,11 @@ Everything is configured in the UI, in three steps:
 Members are always picked from the pool's own domain, and pool entities are
 excluded from the picker so a pool can never contain itself.
 
+An existing pool is edited from **Configure** (options) or **Reconfigure** on
+the config entry. Both change members, strategy and allowances. Neither
+changes the pool type.
+
+
 ## Strategies
 
 | Strategy      | Behaviour                                                          |

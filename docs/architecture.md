@@ -65,7 +65,7 @@ reload.
 | `store.py` | Persisted counters, day rollover, rolling per-minute request log. |
 | `views.py` | `MemberView` — frozen read model for sensors, diagnostics and tests. |
 | `models.py` | Heuristic model and provider `config_entry_id` (subentry first). `shared_account_models()` is the duplicate predicate. |
-| `config_flow.py` | Create + options. Pool type chosen once. STT buffer shown in MB, stored in bytes. |
+| `config_flow.py` | Create, options and reconfigure. Pool type chosen once. STT buffer shown in MB, stored in bytes. |
 | `entity.py` | Shared identity. Names the pool entity explicitly (`entry.title`). |
 | `__init__.py` | Loads one platform plus sensors; `ai_pool.reset_member`; prunes orphan member sensors. |
 | `ai_task.py` / `conversation.py` / `tts.py` / `stt.py` | Thin adapters: build `run`, call `async_execute`, translate the result. |

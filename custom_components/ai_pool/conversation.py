@@ -2,21 +2,23 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from homeassistant.components import conversation
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import intent
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .entity import AIPoolEntity
+from .pool import AIPoolConfigEntry
 
 PARALLEL_UPDATES = 0
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: AIPoolConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the pooled conversation agent."""
@@ -27,14 +29,16 @@ class AIPoolConversationEntity(AIPoolEntity, conversation.ConversationEntity):
     """A conversation agent that delegates to pool members."""
 
     @property
-    def supported_languages(self) -> list[str] | str:
+    def supported_languages(self) -> list[str] | Literal["*"]:
         """Languages supported by the pool.
 
         Members may disagree, so the pool advertises match-all and lets the
         member reject a language it cannot handle - which the classifier then
         treats as a reason to try the next one.
         """
-        return conversation.MATCH_ALL
+        # conversation.MATCH_ALL is this sentinel; the module does not
+        # re-export the name for typing.
+        return "*"
 
     async def _async_handle_message(
         self,

@@ -16,14 +16,13 @@ from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
 )
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import DOMAIN, STATUS_HEALTHY
-from .pool import AIPool
+from .pool import AIPool, AIPoolConfigEntry
 
 PARALLEL_UPDATES = 0
 # Cooldowns start at five minutes and member availability can change without
@@ -34,7 +33,7 @@ SCAN_INTERVAL = timedelta(minutes=1)
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: AIPoolConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Create the pool's problem sensor."""
@@ -55,7 +54,7 @@ class AIPoolNoHealthyMemberSensor(BinarySensorEntity):
     # pool being involved at all, so there is no event to listen for.
     _attr_should_poll = True
 
-    def __init__(self, pool: AIPool, entry: ConfigEntry) -> None:
+    def __init__(self, pool: AIPool, entry: AIPoolConfigEntry) -> None:
         """Bind the sensor to its pool."""
         self._pool = pool
         self._entry = entry

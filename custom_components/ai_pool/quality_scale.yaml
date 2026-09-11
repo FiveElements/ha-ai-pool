@@ -51,7 +51,7 @@ rules:
   reauthentication-flow:
     status: exempt
     comment: The pool holds no credentials.
-  test-coverage: todo
+  test-coverage: done
 
   # Gold
   devices: done
@@ -62,14 +62,14 @@ rules:
   discovery:
     status: exempt
     comment: Pools are created in the UI from existing member entities; there is nothing to discover.
-  docs-data-update: todo
+  docs-data-update: done
   docs-examples: done
   docs-known-limitations: done
   docs-supported-devices:
     status: exempt
     comment: The integration fronts Home Assistant AI entities, not hardware devices.
   docs-supported-functions: done
-  docs-troubleshooting: todo
+  docs-troubleshooting: done
   docs-use-cases: done
   dynamic-devices:
     status: exempt
@@ -79,8 +79,8 @@ rules:
   entity-disabled-by-default: done
   entity-translations: done
   exception-translations: done
-  icon-translations: todo
-  reconfiguration-flow: todo
+  icon-translations: done
+  reconfiguration-flow: done
   repair-issues: done
   stale-devices: done
 
@@ -91,4 +91,4 @@ rules:
   inject-websession:
     status: exempt
     comment: The integration has no HTTP client.
-  strict-typing: todo
+  strict-typing: done

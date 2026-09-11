@@ -50,6 +50,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install "pytest-homeassistant-custom-component==${{ matrix.harness }}"
+          pip install mypy==1.18.2
           python scripts/component_requirements.py > component-requirements.txt
           cat component-requirements.txt
           pip install -r component-requirements.txt
@@ -61,6 +62,8 @@ jobs:
             --cov-report=xml \
             --cov-fail-under=95 \
             -q
+      - name: Type check
+        run: mypy custom_components/ai_pool
       - name: Upload coverage
         if: matrix.coverage
         uses: actions/upload-artifact@v4

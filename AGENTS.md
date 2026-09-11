@@ -8,7 +8,7 @@ A Home Assistant custom integration (`custom_components/ai_pool`, HACS-installab
 fronts several AI provider entities with **one** pool entity, rotating calls to spread
 per-model daily quotas and failing over when a provider refuses. Four pool types:
 `ai_task`, `conversation`, `tts`, `stt`. Requires Python 3.13+ and Home Assistant
-2026.9.0+. Declared integration quality scale is **bronze** (`manifest.json`).
+2026.9.0+. Declared integration quality scale is **platinum** (`manifest.json`).
 
 The product is quota split across **accounts** (API keys / config entries), not across
 entity names. Two Google keys on `gemini-flash-latest` is the intended setup.
@@ -24,6 +24,7 @@ python -m venv .venv
 .venv/bin/pytest tests/test_pool.py::test_name -q  # one test
 .venv/bin/ruff check custom_components tests
 .venv/bin/ruff format --check custom_components tests
+.venv/bin/mypy custom_components/ai_pool
 pip install -r requirements-docs.txt && mkdocs serve   # http://127.0.0.1:8000
 ```
 
@@ -55,10 +56,11 @@ docker run --rm \
   -v "$PWD:/src" -v ha-ai-pool-pip:/root/.cache/pip -w /src \
   python:3.14-bookworm bash -lc '
     pip install -q -U pip
-    pip install -q pytest-homeassistant-custom-component==0.13.362 pytest-cov
+    pip install -q pytest-homeassistant-custom-component==0.13.362 pytest-cov mypy==1.18.2
     python scripts/component_requirements.py > /tmp/reqs.txt
     pip install -q -r /tmp/reqs.txt
     pytest tests -q --tb=short
+    mypy custom_components/ai_pool
   '
 ```
 
@@ -74,8 +76,9 @@ workflow refuses to publish if tag and manifest disagree. `hacs.json`'s
 `homeassistant` key is the supported floor and must match the oldest entry in the CI
 matrix.
 
-Do not raise `quality_scale` in the manifest above bronze until `test-coverage` in
-`quality_scale.yaml` is measured (Silver wants ≥95%) and that rule is `done`.
+Do not lower `quality_scale` in the manifest below platinum without also
+reverting the matching rules in `quality_scale.yaml`. Silver is held by
+`--cov-fail-under=95`; Platinum by `mypy --strict` on `custom_components/ai_pool`.
 
 ## Architecture
 
@@ -156,8 +159,8 @@ These are deliberate and load-bearing; several have tests pinning them.
 
 ## Quality scale
 
-`custom_components/ai_pool/quality_scale.yaml` is the checklist. Bronze rules are
-`done` or `exempt`. Silver is blocked on `test-coverage`. Several exemptions are
+`custom_components/ai_pool/quality_scale.yaml` is the checklist. Bronze, Silver,
+Gold and Platinum rules are `done` or `exempt`. Several exemptions are
 product decisions, not leftovers — `has-entity-name`, `entity-unavailable`,
 `log-when-unavailable`, `reauthentication-flow`, `test-before-configure`,
 `test-before-setup`. Change the code *or* the comment, not the status alone.

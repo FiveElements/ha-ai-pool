@@ -41,6 +41,7 @@ site, published from `docs/` on every push to `main`:
 | [Configuration](https://fiveelements.github.io/ha-ai-pool/configuration/) | Strategies and failure handling |
 | [Routing](https://fiveelements.github.io/ha-ai-pool/routing/) | Quotas, 503 vs 429, cooldowns, accounts |
 | [Observability](https://fiveelements.github.io/ha-ai-pool/observability/) | Sensors, events, `ai_pool.reset_member` |
+| [Troubleshooting](https://fiveelements.github.io/ha-ai-pool/troubleshooting/) | Symptoms, causes, fixes |
 | [Platforms](https://fiveelements.github.io/ha-ai-pool/platforms/) | Notes per `ai_task` / conversation / TTS / STT |
 | [Architecture](https://fiveelements.github.io/ha-ai-pool/architecture/) | Modules, request path, invariants |
 | [Development](https://fiveelements.github.io/ha-ai-pool/development/) | Tests, quality scale, releasing |
@@ -311,6 +312,42 @@ fresh allowance. Day counters reset on the local calendar day; the recent
 latency window deliberately does not, because "how fast is it right now" is
 not a question about today.
 
+### Data updates
+
+The pool is not a polling integration. Counters, latency and the fallback rate
+update **when a call is routed**. A restart does not reset today's counts:
+usage is persisted.
+
+The **problem sensor** polls once a minute, because a cooldown can expire or a
+member can go unavailable without the pool seeing a call. Day counters roll at
+local midnight and again on the next request if midnight was missed. Sensors
+never roll the day themselves.
+
+There is no user-configurable scan interval for the routed platforms: a call
+is the update. Do not lower the problem sensor's poll in the hope of seeing
+quota sooner; the provider does not report remaining quota at all.
+
+## Troubleshooting
+
+Symptoms, causes and fixes live on the
+[troubleshooting](https://fiveelements.github.io/ha-ai-pool/troubleshooting/)
+wiki page. The short list:
+
+| Symptom | First check |
+| ------- | ----------- |
+| Announcement never plays, pool stays available | Problem sensor statuses, then `ai_pool_exhausted` |
+| Repair about a shared model | Same **account** (config entry) twice; two keys on one model are fine |
+| One 503 skips the other Flash member | They share a config entry; split API keys if you meant two accounts |
+| High fallback rate | First member's `failures_<kind>` |
+| Missing latency sensors | Disabled by default — enable in the entity registry |
+| Truncated STT transcript | Raise the audio retry buffer; clipped audio gets no failover |
+| Cannot add a second pool over the same members | That would double-count the allowance |
+| Cannot change pool type | Create a new pool; type decides which platform loads |
+
+Configure or **Reconfigure** on the config entry edits members and policy
+without deleting the pool. Reload the entry (or `ai_pool.reset_member`) to
+re-admit a member disabled by a bad API key.
+
 ## Per-type notes
 
 - **`ai_task`** — attachments are not supported. They arrive already resolved
@@ -363,9 +400,9 @@ those versions.
 Progress is tracked in
 [`quality_scale.yaml`](custom_components/ai_pool/quality_scale.yaml) against
 Home Assistant's [integration quality scale](https://developers.home-assistant.io/docs/core/integration-quality-scale/).
-The manifest declares **bronze**. Silver is not claimed yet: `test-coverage`
-(≥95%) is still open, and a listing in the Home Assistant brands repository
-can follow the in-repo `icon.png`.
+The manifest declares **platinum**. Silver is held by `--cov-fail-under=95`
+in CI. A listing in the Home Assistant brands repository can follow the
+in-repo `icon.png`.
 
 Rules this integration keeps as exemptions:
 

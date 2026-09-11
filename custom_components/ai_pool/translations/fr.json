@@ -43,7 +43,8 @@
       "no_members": "Choisir au moins un membre."
     },
     "abort": {
-      "already_configured": "Un pool de ce type couvre déjà exactement ces membres. Deux pools sur les mêmes membres tiennent chacun leurs compteurs et croient chacun disposer de tout le quota."
+      "already_configured": "Un pool de ce type couvre déjà exactement ces membres. Deux pools sur les mêmes membres tiennent chacun leurs compteurs et croient chacun disposer de tout le quota.",
+      "reconfigure_successful": "Le pool a été reconfiguré."
     }
   },
   "options": {

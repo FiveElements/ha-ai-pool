@@ -43,7 +43,8 @@
       "no_members": "Pick at least one member."
     },
     "abort": {
-      "already_configured": "A pool of that type already fronts exactly these members. Two pools over the same members each keep their own counters and each believe they hold the whole allowance."
+      "already_configured": "A pool of that type already fronts exactly these members. Two pools over the same members each keep their own counters and each believe they hold the whole allowance.",
+      "reconfigure_successful": "The pool has been reconfigured."
     }
   },
   "options": {

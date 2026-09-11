@@ -5,18 +5,18 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components import tts
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .entity import AIPoolEntity
+from .pool import AIPoolConfigEntry
 
 PARALLEL_UPDATES = 0
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: AIPoolConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the pooled text-to-speech entity."""
@@ -28,7 +28,9 @@ class AIPoolTTSEntity(AIPoolEntity, tts.TextToSpeechEntity):
 
     def _member_entities(self) -> list[tts.TextToSpeechEntity]:
         """Resolve configured members to live tts entities."""
-        component = self.hass.data.get(tts.DATA_COMPONENT)
+        # tts.DATA_COMPONENT is public at runtime but not in the module's
+        # typed exports, so mypy's implicit-reexport check rejects the name.
+        component = self.hass.data.get(tts.DATA_COMPONENT)  # type: ignore[attr-defined]
         if component is None:
             return []
         found: list[tts.TextToSpeechEntity] = []

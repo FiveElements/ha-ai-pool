@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import ServiceValidationError
@@ -24,13 +23,11 @@ from .const import (
     DOMAIN,
     SERVICE_RESET_MEMBER,
 )
-from .pool import AIPool
+from .pool import AIPool, AIPoolConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
-
-type AIPoolConfigEntry = ConfigEntry[AIPool]
 
 # The platform a pool publishes on depends on what kind of pool it is; the
 # sensor platforms are always added so member health is visible on a dashboard.
@@ -50,14 +47,14 @@ RESET_MEMBER_SCHEMA = vol.Schema(
 )
 
 
-def _platforms(entry: ConfigEntry) -> list[Platform]:
+def _platforms(entry: AIPoolConfigEntry) -> list[Platform]:
     """Platforms to load for this entry."""
     pool_type = {**entry.data, **entry.options}[CONF_POOL_TYPE]
     return [POOL_PLATFORM[pool_type], Platform.SENSOR, Platform.BINARY_SENSOR]
 
 
 @callback
-def _prune_orphan_entities(hass: HomeAssistant, entry: ConfigEntry) -> list[str]:
+def _prune_orphan_entities(hass: HomeAssistant, entry: AIPoolConfigEntry) -> list[str]:
     """Remove registry entries for members the pool no longer has.
 
     Sensors are only created for current members, but nothing ever removed the
@@ -133,7 +130,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 
-async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_migrate_entry(hass: HomeAssistant, entry: AIPoolConfigEntry) -> bool:
     """Bring a config entry forward to the current schema.
 
     Nothing to rewrite yet, and that is exactly why this is here: without the
@@ -187,7 +184,7 @@ async def async_reload_entry(hass: HomeAssistant, entry: AIPoolConfigEntry) -> N
     await hass.config_entries.async_reload(entry.entry_id)
 
 
-async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+async def async_remove_entry(hass: HomeAssistant, entry: AIPoolConfigEntry) -> None:
     """Delete persisted counters and repairs along with the entry."""
     pool = AIPool(hass, entry)
     pool.async_clear_issues()

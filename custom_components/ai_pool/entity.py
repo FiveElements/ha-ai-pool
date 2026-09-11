@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
 
 from .const import DOMAIN
-from .pool import AIPool
+from .pool import AIPool, AIPoolConfigEntry
 
 
 class AIPoolEntity(Entity):
@@ -15,7 +14,7 @@ class AIPoolEntity(Entity):
 
     _attr_should_poll = False
 
-    def __init__(self, pool: AIPool, entry: ConfigEntry) -> None:
+    def __init__(self, pool: AIPool, entry: AIPoolConfigEntry) -> None:
         """Initialise identity from the config entry."""
         self.pool = pool
         self._entry = entry

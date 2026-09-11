@@ -12,7 +12,7 @@ import logging
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any, TypeVar
 
 from homeassistant.config_entries import ConfigEntry
@@ -62,6 +62,10 @@ _LOGGER = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
+# Lazy: AIPool is defined below. Platforms import this instead of ConfigEntry
+# so runtime_data is AIPool throughout, which strict typing requires.
+type AIPoolConfigEntry = ConfigEntry["AIPool"]
+
 
 def _rounded(value: float | None, digits: int = 3) -> float | None:
     """Round a metric for display, keeping None as None.
@@ -106,7 +110,7 @@ class MemberConfig:
 class AIPool:
     """Routes calls across member entities and tracks their health."""
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+    def __init__(self, hass: HomeAssistant, entry: AIPoolConfigEntry) -> None:
         """Initialise the pool for a config entry."""
         self.hass = hass
         self.entry = entry
@@ -125,12 +129,12 @@ class AIPool:
     @property
     def pool_type(self) -> str:
         """Which Home Assistant domain this pool fronts."""
-        return self._config[CONF_POOL_TYPE]
+        return str(self._config[CONF_POOL_TYPE])
 
     @property
     def strategy(self) -> str:
         """Configured ordering strategy."""
-        return self._config.get(CONF_STRATEGY, DEFAULT_STRATEGY)
+        return str(self._config.get(CONF_STRATEGY, DEFAULT_STRATEGY))
 
     @property
     def cooldown(self) -> timedelta:
@@ -225,7 +229,7 @@ class AIPool:
         self._notify()
         return reset
 
-    async def async_roll_day(self, now: Any = None) -> None:
+    async def async_roll_day(self, now: datetime | None = None) -> None:
         """Zero the day counters when the local day changes.
 
         Driven by a midnight trigger. The request path rolls them too, because

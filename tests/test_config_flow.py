@@ -416,3 +416,122 @@ async def test_options_flow_keeps_an_stt_buffer_as_the_default(
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.data[CONF_STT_BUFFER_LIMIT] == 16 * 1024 * 1024
     assert entry.data[CONF_STT_BUFFER_LIMIT] != DEFAULT_STT_BUFFER_LIMIT
+
+
+async def test_reconfigure_flow_updates_members_without_changing_pool_type(
+    hass: HomeAssistant,
+) -> None:
+    """Reconfigure is how Gold wants an existing entry edited, not deleted."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Pool",
+        unique_id=_pool_key("ai_task", [A]),
+        data={
+            CONF_POOL_TYPE: "ai_task",
+            CONF_STRATEGY: STRATEGY_ROUND_ROBIN,
+            CONF_COOLDOWN: 300,
+            CONF_MAX_ATTEMPTS: 3,
+            CONF_MEMBERS: [{"entity_id": A, CONF_DAILY_LIMIT: 100, CONF_WEIGHT: 1}],
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+    # Pool type is immutable, so reconfigure starts at members, not user.
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "members"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_MEMBERS: [A, B],
+            CONF_STRATEGY: STRATEGY_LEAST_USED,
+            CONF_COOLDOWN: 60,
+            CONF_MAX_ATTEMPTS: 2,
+            CONF_TIMEOUT: DEFAULT_TIMEOUT,
+        },
+    )
+    assert result["step_id"] == "limits"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            f"limit_{A}": 100,
+            f"rpm_{A}": 0,
+            f"weight_{A}": 1,
+            f"limit_{B}": 500,
+            f"rpm_{B}": 5,
+            f"weight_{B}": 3,
+        },
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_POOL_TYPE] == "ai_task"
+    assert entry.data[CONF_STRATEGY] == STRATEGY_LEAST_USED
+    assert entry.data[CONF_COOLDOWN] == 60
+    assert len(entry.data[CONF_MEMBERS]) == 2
+    assert entry.options == {}
+    assert entry.unique_id == _pool_key("ai_task", [A, B])
+
+
+async def test_reconfigure_flow_rejects_a_member_set_another_pool_already_covers(
+    hass: HomeAssistant,
+) -> None:
+    first = MockConfigEntry(
+        domain=DOMAIN,
+        title="First",
+        unique_id=_pool_key("ai_task", [A]),
+        data={
+            CONF_POOL_TYPE: "ai_task",
+            CONF_STRATEGY: STRATEGY_ROUND_ROBIN,
+            CONF_COOLDOWN: 300,
+            CONF_MAX_ATTEMPTS: 3,
+            CONF_MEMBERS: [{"entity_id": A, CONF_DAILY_LIMIT: 100, CONF_WEIGHT: 1}],
+        },
+    )
+    first.add_to_hass(hass)
+    second = MockConfigEntry(
+        domain=DOMAIN,
+        title="Second",
+        unique_id=_pool_key("ai_task", [B]),
+        data={
+            CONF_POOL_TYPE: "ai_task",
+            CONF_STRATEGY: STRATEGY_ROUND_ROBIN,
+            CONF_COOLDOWN: 300,
+            CONF_MAX_ATTEMPTS: 3,
+            CONF_MEMBERS: [{"entity_id": B, CONF_DAILY_LIMIT: 100, CONF_WEIGHT: 1}],
+        },
+    )
+    second.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": second.entry_id,
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_MEMBERS: [A],
+            CONF_STRATEGY: STRATEGY_ROUND_ROBIN,
+            CONF_COOLDOWN: 300,
+            CONF_MAX_ATTEMPTS: 3,
+            CONF_TIMEOUT: DEFAULT_TIMEOUT,
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {f"limit_{A}": 100, f"rpm_{A}": 0, f"weight_{A}": 1},
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    # Second pool is unchanged: colliding is not a silent overwrite.
+    assert [item["entity_id"] for item in second.data[CONF_MEMBERS]] == [B]

@@ -15,8 +15,10 @@ midnight.
 from __future__ import annotations
 
 import time
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime
+from typing import Any
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.storage import Store
@@ -183,12 +185,12 @@ class MemberState:
         self.latency_min = None
         self.latency_max = None
 
-    def as_dict(self) -> dict:
+    def as_dict(self) -> dict[str, Any]:
         """Serialise for the storage helper."""
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: dict) -> MemberState:
+    def from_dict(cls, data: Mapping[str, Any]) -> MemberState:
         """Rehydrate, ignoring keys written by other versions."""
         known = {f for f in cls.__dataclass_fields__}
         return cls(**{k: v for k, v in data.items() if k in known})
@@ -235,12 +237,12 @@ class PoolStats:
         self.fallbacks = 0
         self.failures = 0
 
-    def as_dict(self) -> dict:
+    def as_dict(self) -> dict[str, Any]:
         """Serialise for the storage helper."""
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: dict) -> PoolStats:
+    def from_dict(cls, data: Mapping[str, Any]) -> PoolStats:
         """Rehydrate, ignoring keys written by other versions."""
         known = {f for f in cls.__dataclass_fields__}
         return cls(**{k: v for k, v in data.items() if k in known})
@@ -261,7 +263,7 @@ class PoolState:
         return self.members[key]
 
 
-class PoolStore(Store[dict]):
+class PoolStore(Store[dict[str, Any]]):
     """The storage handle, with a migration path that exists from the start.
 
     Without an override, bumping ``STORAGE_VERSION`` raises
@@ -270,8 +272,8 @@ class PoolStore(Store[dict]):
     """
 
     async def _async_migrate_func(
-        self, old_major_version: int, old_minor_version: int, old_data: dict
-    ) -> dict:
+        self, old_major_version: int, old_minor_version: int, old_data: dict[str, Any]
+    ) -> dict[str, Any]:
         """Bring stored data forward to the current version.
 
         Nothing needs rewriting yet: every schema change so far has only added
@@ -306,7 +308,7 @@ class UsageStore:
         self.roll_day()
         return self.state
 
-    def _as_dict(self) -> dict:
+    def _as_dict(self) -> dict[str, Any]:
         """Serialise the whole state for the storage helper."""
         return {
             "cursor": self.state.cursor,

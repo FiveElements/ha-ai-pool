@@ -28,3 +28,11 @@ ignore = ["D203", "D213"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "pep257"
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+packages = ["custom_components.ai_pool"]
+show_error_codes = true
+warn_unused_ignores = true
+

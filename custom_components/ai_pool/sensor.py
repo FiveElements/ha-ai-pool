@@ -19,16 +19,14 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE, UnitOfTime
+from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import DOMAIN
-from .pool import AIPool
+from .pool import AIPool, AIPoolConfigEntry
 from .views import MemberView
 
 PARALLEL_UPDATES = 0
@@ -55,7 +53,7 @@ def _member_label(hass: HomeAssistant, member_id: str) -> str:
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: AIPoolConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Create the per-member sensors plus the pool's routing sensor."""
@@ -75,7 +73,7 @@ class AIPoolSensor(SensorEntity):
     _attr_should_poll = False
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
-    def __init__(self, pool: AIPool, entry: ConfigEntry) -> None:
+    def __init__(self, pool: AIPool, entry: AIPoolConfigEntry) -> None:
         """Bind the sensor to its pool."""
         self._pool = pool
         self._entry = entry
@@ -98,7 +96,7 @@ class AIPoolMemberSensor(AIPoolSensor):
     """Base for sensors describing one member."""
 
     def __init__(
-        self, pool: AIPool, entry: ConfigEntry, member_id: str, label: str
+        self, pool: AIPool, entry: AIPoolConfigEntry, member_id: str, label: str
     ) -> None:
         """Bind the sensor to one member of the pool."""
         super().__init__(pool, entry)
@@ -121,7 +119,7 @@ class AIPoolCallsSensor(AIPoolMemberSensor):
     _attr_native_unit_of_measurement = "calls"
 
     def __init__(
-        self, pool: AIPool, entry: ConfigEntry, member_id: str, label: str
+        self, pool: AIPool, entry: AIPoolConfigEntry, member_id: str, label: str
     ) -> None:
         """Bind the sensor to one member of the pool."""
         super().__init__(pool, entry, member_id, label)
@@ -198,7 +196,7 @@ class AIPoolLatencySensor(AIPoolMemberSensor):
     _attr_entity_registry_enabled_default = False
 
     def __init__(
-        self, pool: AIPool, entry: ConfigEntry, member_id: str, label: str
+        self, pool: AIPool, entry: AIPoolConfigEntry, member_id: str, label: str
     ) -> None:
         """Bind the sensor to one member of the pool."""
         super().__init__(pool, entry, member_id, label)
@@ -239,7 +237,7 @@ class AIPoolFallbackSensor(AIPoolSensor):
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 0
 
-    def __init__(self, pool: AIPool, entry: ConfigEntry) -> None:
+    def __init__(self, pool: AIPool, entry: AIPoolConfigEntry) -> None:
         """Bind the sensor to the pool as a whole."""
         super().__init__(pool, entry)
         self._attr_unique_id = f"{entry.entry_id}_fallback_rate"
@@ -247,7 +245,8 @@ class AIPoolFallbackSensor(AIPoolSensor):
     @property
     def native_value(self) -> float | None:
         """Fallback rate today, as a percentage of requests."""
-        return self._pool.routing_snapshot()["fallback_rate"]
+        rate = self._pool.routing_snapshot()["fallback_rate"]
+        return None if rate is None else float(rate)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

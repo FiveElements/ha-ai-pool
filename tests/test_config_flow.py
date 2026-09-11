@@ -480,6 +480,53 @@ async def test_options_flow_rejects_a_member_set_another_pool_already_covers(
     assert schema[CONF_WEIGHT].default() == 1
 
 
+async def test_options_flow_edits_quotas_when_the_member_set_is_unchanged(
+    hass: HomeAssistant,
+) -> None:
+    """A duplicate sibling must not freeze Configure on the existing set.
+
+    Two v1 entries can share members when unique_id was never stamped.
+    Changing allowances is not a new identity, so it must still save.
+    """
+    first = MockConfigEntry(
+        domain=DOMAIN,
+        title="First",
+        unique_id=None,
+        data={
+            CONF_POOL_TYPE: "ai_task",
+            CONF_STRATEGY: STRATEGY_ROUND_ROBIN,
+            CONF_COOLDOWN: 300,
+            CONF_MAX_ATTEMPTS: 3,
+            CONF_MEMBERS: [{"entity_id": A, CONF_DAILY_LIMIT: 100, CONF_WEIGHT: 1}],
+        },
+    )
+    first.add_to_hass(hass)
+    second = MockConfigEntry(
+        domain=DOMAIN,
+        title="Second",
+        unique_id=None,
+        data={
+            CONF_POOL_TYPE: "ai_task",
+            CONF_STRATEGY: STRATEGY_ROUND_ROBIN,
+            CONF_COOLDOWN: 300,
+            CONF_MAX_ATTEMPTS: 3,
+            CONF_MEMBERS: [{"entity_id": A, CONF_DAILY_LIMIT: 100, CONF_WEIGHT: 1}],
+        },
+    )
+    second.add_to_hass(hass)
+
+    result = await _choose_options(hass, second.entry_id, "limits")
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        _limits_input((50, 8, 2)),
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    member = second.data[CONF_MEMBERS][0]
+    assert member[CONF_DAILY_LIMIT] == 50
+    assert member[CONF_RPM_LIMIT] == 8
+    assert member[CONF_WEIGHT] == 2
+
+
 async def test_options_flow_keeps_an_stt_buffer_as_the_default(
     hass: HomeAssistant,
 ) -> None:

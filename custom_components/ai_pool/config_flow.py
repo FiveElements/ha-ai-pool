@@ -285,6 +285,20 @@ def _entry_pool_key(entry: ConfigEntry) -> str | None:
     return _pool_key(str(pool_type), [item["entity_id"] for item in members])
 
 
+def _conflicting_pool(
+    hass: HomeAssistant, key: str, exclude_entry_id: str
+) -> ConfigEntry | None:
+    """Another pool that already claims this exact member set."""
+    return next(
+        (
+            entry
+            for entry in hass.config_entries.async_entries(DOMAIN)
+            if _entry_pool_key(entry) == key and entry.entry_id != exclude_entry_id
+        ),
+        None,
+    )
+
+
 def _build_members(
     member_ids: list[str], user_input: dict[str, Any]
 ) -> list[dict[str, Any]]:
@@ -394,16 +408,10 @@ class AIPoolConfigFlow(ConfigFlow, domain=DOMAIN):
             key = _pool_key(data[CONF_POOL_TYPE], self._member_ids)
             if self.source == SOURCE_RECONFIGURE:
                 entry = self._get_reconfigure_entry()
-                clash = next(
-                    (
-                        other
-                        for other in self.hass.config_entries.async_entries(DOMAIN)
-                        if _entry_pool_key(other) == key
-                        and other.entry_id != entry.entry_id
-                    ),
-                    None,
-                )
-                if clash is not None:
+                # Reconfigure of the same members is an edit, not a second pool.
+                if _entry_pool_key(entry) != key and _conflicting_pool(
+                    self.hass, key, entry.entry_id
+                ):
                     return self.async_abort(reason="already_configured")
                 return self.async_update_reload_and_abort(
                     entry,
@@ -503,19 +511,13 @@ class AIPoolOptionsFlow(OptionsFlow):
         if user_input is not None:
             data = dict(self._draft)
             data[CONF_MEMBERS] = _build_members(self._member_ids, user_input)
-            # The member set may have changed, so the pool's identity may now
-            # collide with another pool's.
+            # Changing allowances keeps the same identity. Blocking that used
+            # to make Configure unusable next to a v1 duplicate that unique_id
+            # never stamped.
             key = _pool_key(data[CONF_POOL_TYPE], self._member_ids)
-            clash = next(
-                (
-                    entry
-                    for entry in self.hass.config_entries.async_entries(DOMAIN)
-                    if _entry_pool_key(entry) == key
-                    and entry.entry_id != self.config_entry.entry_id
-                ),
-                None,
-            )
-            if clash is not None:
+            if _entry_pool_key(self.config_entry) != key and _conflicting_pool(
+                self.hass, key, self.config_entry.entry_id
+            ):
                 return self.async_show_form(
                     step_id="limits",
                     data_schema=_limits_schema(

@@ -1,4 +1,4 @@
 -r requirements-lint.txt
-pytest-homeassistant-custom-component==0.13.362
+pytest-homeassistant-custom-component==0.13.363
 mypy==1.18.2
 

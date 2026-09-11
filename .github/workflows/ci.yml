@@ -39,7 +39,7 @@ jobs:
         # newer one alongside it to test a version before raising the floor.
         include:
           - ha: "2026.9.0"
-            harness: "0.13.362"
+            harness: "0.13.363"
             coverage: true
     steps:
       - uses: actions/checkout@v5

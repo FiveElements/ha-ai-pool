@@ -57,7 +57,7 @@ docker run --rm \
   -v "$PWD:/src" -v ha-ai-pool-pip:/root/.cache/pip -w /src \
   python:3.14-bookworm bash -lc '
     pip install -q -U pip
-    pip install -q pytest-homeassistant-custom-component==0.13.362 pytest-cov mypy==1.18.2
+    pip install -q pytest-homeassistant-custom-component==0.13.363 pytest-cov mypy==1.18.2
     python scripts/component_requirements.py > /tmp/reqs.txt
     pip install -q -r /tmp/reqs.txt
     pytest tests -q --tb=short

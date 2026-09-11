@@ -1,7 +1,7 @@
 """Behaviour that keeps a pool serving: deadlines, backoff, recovery, events.
 
 These cover the five failure modes the pool was blind to: members that are
-secretly the same model, members that never answer, members held back for good,
+secretly the same account, members that never answer, members held back for good,
 a total failure nothing observes, and a fixed cooldown that keeps knocking on a
 saturated provider's door.
 """
@@ -47,7 +47,11 @@ from custom_components.ai_pool.const import (
     STRATEGY_ROUND_ROBIN,
 )
 from custom_components.ai_pool.errors import FailureKind
-from custom_components.ai_pool.models import member_model, shared_models
+from custom_components.ai_pool.models import (
+    member_model,
+    shared_account_models,
+    shared_models,
+)
 from custom_components.ai_pool.pool import AIPool, AllMembersFailedError
 from custom_components.ai_pool.store import parse_iso
 
@@ -110,7 +114,7 @@ async def make_pool(hass: HomeAssistant, entry: MockConfigEntry) -> AIPool:
     return pool
 
 
-# --- 1. Members that are secretly the same model ----------------------------
+# --- 1. Members that are secretly the same account --------------------------
 
 
 def test_shared_models_ignores_unknown_models() -> None:
@@ -118,6 +122,23 @@ def test_shared_models_ignores_unknown_models() -> None:
     assert shared_models({A: None, B: None}) == {}
     assert shared_models({A: "flash", B: "pro"}) == {}
     assert shared_models({A: "flash", B: "flash", C: "pro"}) == {"flash": [A, B]}
+
+
+def test_shared_account_models_only_flags_the_same_account() -> None:
+    """Two API keys on one model is quota rotation, not a duplicate."""
+    assert (
+        shared_account_models(
+            {A: "flash", B: "flash"},
+            {A: "entry-1", B: "entry-2"},
+        )
+        == {}
+    )
+    assert shared_account_models(
+        {A: "flash", B: "flash"},
+        {A: "entry-1", B: "entry-1"},
+    ) == {"flash": [A, B]}
+    # Unknown accounts, like unknown models, conclude nothing.
+    assert shared_account_models({A: "flash", B: "flash"}, {A: None, B: None}) == {}
 
 
 async def test_member_model_reads_the_config_entry(hass: HomeAssistant) -> None:
@@ -136,12 +157,7 @@ async def test_member_model_reads_the_config_entry(hass: HomeAssistant) -> None:
 
 
 async def test_member_model_prefers_the_subentry(hass: HomeAssistant) -> None:
-    """Providers that publish several entities per account do it via subentries.
-
-    This is the shape that actually matters: two Google accounts, each with an
-    ai_task subentry naming the model, is exactly the configuration where two
-    members turn out to be one.
-    """
+    """Providers that publish several entities per account do it via subentries."""
     provider = MockConfigEntry(domain="fake_provider", data={"chat_model": "account"})
     provider.add_to_hass(hass)
     subentry = ConfigSubentry(
@@ -163,14 +179,40 @@ async def test_member_model_prefers_the_subentry(hass: HomeAssistant) -> None:
     assert member_model(hass, entity.entity_id) == "models/from-subentry"
 
 
-async def test_capacity_refusal_skips_members_on_the_same_model(
-    hass: HomeAssistant, available, monkeypatch
+def _register_member(
+    hass: HomeAssistant,
+    entity_id: str,
+    *,
+    unique: str,
+    model: str,
+    provider: MockConfigEntry | None = None,
+) -> MockConfigEntry:
+    """Attach a member entity to a provider config entry."""
+    if provider is None:
+        provider = MockConfigEntry(
+            domain="fake_provider",
+            unique_id=unique,
+            data={"chat_model": model},
+        )
+        provider.add_to_hass(hass)
+    er.async_get(hass).async_get_or_create(
+        "ai_task",
+        "fake_provider",
+        unique,
+        config_entry=provider,
+        suggested_object_id=entity_id.split(".", 1)[1],
+    )
+    return provider
+
+
+async def test_capacity_refusal_still_tries_another_account(
+    hass: HomeAssistant, available
 ) -> None:
-    """Asking the same model twice is asking the same engine the same question."""
-    available(A, B, C)
-    pool = await make_pool(hass, build_entry([A, B, C]))
-    models = {A: "flash", B: "flash", C: "pro"}
-    monkeypatch.setattr(AIPool, "member_model", lambda self, key: models[key])
+    """A 503 is this key's view of the model, not every other key's."""
+    _register_member(hass, A, unique="acct-a", model="flash")
+    _register_member(hass, B, unique="acct-b", model="flash")
+    available(A, B)
+    pool = await make_pool(hass, build_entry([A, B]))
 
     tried: list[str] = []
 
@@ -181,7 +223,29 @@ async def test_capacity_refusal_skips_members_on_the_same_model(
         return "ok"
 
     assert await pool.async_execute(run) == "ok"
-    # B never gets asked: it is the same model as A, which just refused.
+    assert tried == [A, B]
+
+
+async def test_capacity_refusal_skips_the_same_account_on_the_same_model(
+    hass: HomeAssistant, available
+) -> None:
+    """Two entities of one key are the same engine; another account is not."""
+    shared = _register_member(hass, A, unique="unique-a", model="flash")
+    _register_member(hass, B, unique="unique-b", model="flash", provider=shared)
+    _register_member(hass, C, unique="acct-c", model="pro")
+    available(A, B, C)
+    pool = await make_pool(hass, build_entry([A, B, C]))
+
+    tried: list[str] = []
+
+    async def run(member: str) -> str:
+        tried.append(member)
+        if member == A:
+            raise RuntimeError(GOOGLE_503)
+        return "ok"
+
+    assert await pool.async_execute(run) == "ok"
+    # B never gets asked: it is the same account and model as A.
     assert tried == [A, C]
     # And the skip is not charged as an attempt against the request.
     assert pool.routing_snapshot()["attempts_today"] == 2
@@ -190,7 +254,7 @@ async def test_capacity_refusal_skips_members_on_the_same_model(
 async def test_a_transient_failure_does_not_skip_the_same_model(
     hass: HomeAssistant, available, monkeypatch
 ) -> None:
-    """Only a capacity refusal implicates the model; a blip implicates nothing."""
+    """Only a same-account capacity refusal skips; a blip implicates nothing."""
     available(A, B)
     pool = await make_pool(hass, build_entry([A, B]))
     monkeypatch.setattr(AIPool, "member_model", lambda self, key: "flash")
@@ -208,25 +272,82 @@ async def test_a_transient_failure_does_not_skip_the_same_model(
 
 
 async def test_duplicate_models_raise_and_clear_a_repair(
-    hass: HomeAssistant, monkeypatch
+    hass: HomeAssistant,
 ) -> None:
-    """A pool of duplicates looks healthy in every sensor, so it needs a repair."""
+    """Two entities of one account on one model are the same membership twice."""
+    provider = MockConfigEntry(domain="fake_provider", data={})
+    provider.add_to_hass(hass)
+    sub_a = ConfigSubentry(
+        data={"chat_model": "flash"},
+        subentry_type="ai_task_data",
+        title="A",
+        unique_id=None,
+    )
+    sub_b = ConfigSubentry(
+        data={"chat_model": "flash"},
+        subentry_type="ai_task_data",
+        title="B",
+        unique_id=None,
+    )
+    hass.config_entries.async_add_subentry(provider, sub_a)
+    hass.config_entries.async_add_subentry(provider, sub_b)
+    registry = er.async_get(hass)
+    for unique, entity_id, sub in (("unique-a", A, sub_a), ("unique-b", B, sub_b)):
+        registry.async_get_or_create(
+            "ai_task",
+            "fake_provider",
+            unique,
+            config_entry=provider,
+            config_subentry_id=sub.subentry_id,
+            suggested_object_id=entity_id.split(".", 1)[1],
+        )
+
     entry = build_entry([A, B])
     pool = await make_pool(hass, entry)
     issue_id = f"{ISSUE_DUPLICATE_MODEL}_{entry.entry_id}"
-
-    monkeypatch.setattr(AIPool, "member_model", lambda self, key: "flash")
     pool.async_check_models()
     issue = ir.async_get(hass).async_get_issue(DOMAIN, issue_id)
     assert issue is not None
     assert issue.severity is ir.IssueSeverity.WARNING
     assert "flash" in issue.translation_placeholders["models"]
 
-    # Point them at different models and the repair goes away on its own.
-    distinct = {A: "flash", B: "pro"}
-    monkeypatch.setattr(AIPool, "member_model", lambda self, key: distinct[key])
+    # Same account, different models: no longer a duplicate membership.
+    hass.config_entries.async_update_subentry(
+        provider, sub_b, data={"chat_model": "pro"}
+    )
     pool.async_check_models()
     assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+
+
+async def test_two_accounts_on_the_same_model_do_not_raise_a_repair(
+    hass: HomeAssistant,
+) -> None:
+    """That is the quota split this integration exists to provide."""
+    registry = er.async_get(hass)
+    for unique, entity_id in (("acct-a", A), ("acct-b", B)):
+        provider = MockConfigEntry(
+            domain="fake_provider",
+            unique_id=unique,
+            data={"chat_model": "models/gemini-flash-latest"},
+        )
+        provider.add_to_hass(hass)
+        registry.async_get_or_create(
+            "ai_task",
+            "fake_provider",
+            unique,
+            config_entry=provider,
+            suggested_object_id=entity_id.split(".", 1)[1],
+        )
+
+    entry = build_entry([A, B])
+    pool = await make_pool(hass, entry)
+    pool.async_check_models()
+    assert (
+        ir.async_get(hass).async_get_issue(
+            DOMAIN, f"{ISSUE_DUPLICATE_MODEL}_{entry.entry_id}"
+        )
+        is None
+    )
 
 
 # --- 2. Members that never answer -------------------------------------------
@@ -530,6 +651,39 @@ async def test_calls_sensor_carries_model_and_strikes(
     assert attributes["cooldown_strikes"] == 0
 
 
+async def test_latency_and_fallback_sensors_are_readable_entities(
+    hass: HomeAssistant, available
+) -> None:
+    """The other two diagnostic sensors must exist as states, not just registry rows."""
+    assert await async_setup_component(hass, "homeassistant", {})
+    assert await async_setup_component(hass, "ai_task", {})
+    available(A)
+
+    entry = build_entry([A])
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    registry = er.async_get(hass)
+    entities = {
+        entity.unique_id: entity.entity_id
+        for entity in er.async_entries_for_config_entry(registry, entry.entry_id)
+    }
+    latency = hass.states.get(entities[f"{entry.entry_id}_{A}_latency"])
+    fallback = hass.states.get(entities[f"{entry.entry_id}_fallback_rate"])
+
+    assert latency is not None
+    assert latency.state == "unknown"
+    assert "average_today" in latency.attributes
+    assert "recent_average" in latency.attributes
+
+    assert fallback is not None
+    assert fallback.state == "unknown"
+    assert fallback.attributes["requests_today"] == 0
+    assert fallback.attributes["served_today"] == 0
+    assert fallback.attributes["fallbacks_today"] == 0
+
+
 # --- What the audit found -----------------------------------------------------
 
 
@@ -663,13 +817,16 @@ async def test_reset_sees_a_locally_spent_allowance(
 
 
 async def test_the_duplicate_model_repair_does_not_outlive_the_pool(
-    hass: HomeAssistant, available, monkeypatch
+    hass: HomeAssistant, available
 ) -> None:
     """The issue id embeds the entry id, so a leaked issue is unclearable."""
     assert await async_setup_component(hass, "homeassistant", {})
     assert await async_setup_component(hass, "ai_task", {})
+    provider = _register_member(hass, A, unique="unique-a", model="flash")
+    _register_member(hass, B, unique="unique-b", model="flash", provider=provider)
+    # States after registry rows: creating the state first occupies the
+    # entity id, and the registry would then mint member_a_2.
     available(A, B)
-    monkeypatch.setattr(AIPool, "member_model", lambda self, key: "flash")
 
     entry = build_entry([A, B])
     entry.add_to_hass(hass)

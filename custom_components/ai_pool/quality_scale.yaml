@@ -1,0 +1,94 @@
+rules:
+  # Bronze
+  action-setup: done
+  appropriate-polling: done
+  brands:
+    status: done
+    comment: HACS branding is shipped as icon.png in the repository. A listing in home-assistant/brands can follow.
+  common-modules: done
+  config-flow-test-coverage: done
+  config-flow: done
+  dependency-transparency:
+    status: exempt
+    comment: The integration has no PyPI dependencies; it only calls member entities already set up in Home Assistant.
+  docs-actions: done
+  docs-conditions:
+    status: exempt
+    comment: The integration does not provide conditions.
+  docs-high-level-description: done
+  docs-installation-instructions: done
+  docs-removal-instructions: done
+  docs-triggers:
+    status: exempt
+    comment: The integration does not provide triggers. Failover is observed through events documented in the README.
+  entity-event-setup: done
+  entity-unique-id: done
+  has-entity-name:
+    status: exempt
+    comment: Diagnostic sensors use has_entity_name. The pool entity is named explicitly because the TTS manager reads entity.name and refuses an engine whose name is unset; has_entity_name with name=None would double-name the device's only primary entity.
+  runtime-data: done
+  test-before-configure:
+    status: exempt
+    comment: The pool holds no credentials and opens no connection; member integrations own both.
+  test-before-setup:
+    status: exempt
+    comment: The pool holds no credentials and opens no connection; setup cannot fail for a remote service that is not ours.
+  unique-config-entry: done
+
+  # Silver
+  action-exceptions: done
+  config-entry-unloading: done
+  docs-configuration-parameters: done
+  docs-installation-parameters: done
+  entity-unavailable:
+    status: exempt
+    comment: Pool entities stay available so a call can still fail loudly. A declared limit is an estimate; trouble is reported by the problem sensor and events instead of hiding the entity.
+  integration-owner: done
+  log-when-unavailable:
+    status: exempt
+    comment: The pool is not a remote service. Member unavailability is a routing status, not a connection drop, and is surfaced on the problem sensor.
+  parallel-updates: done
+  reauthentication-flow:
+    status: exempt
+    comment: The pool holds no credentials.
+  test-coverage: todo
+
+  # Gold
+  devices: done
+  diagnostics: done
+  discovery-update-info:
+    status: exempt
+    comment: The pool is not a network device and has no discovery information to refresh.
+  discovery:
+    status: exempt
+    comment: Pools are created in the UI from existing member entities; there is nothing to discover.
+  docs-data-update: todo
+  docs-examples: done
+  docs-known-limitations: done
+  docs-supported-devices:
+    status: exempt
+    comment: The integration fronts Home Assistant AI entities, not hardware devices.
+  docs-supported-functions: done
+  docs-troubleshooting: todo
+  docs-use-cases: done
+  dynamic-devices:
+    status: exempt
+    comment: Members are configured in the options flow, not discovered after setup.
+  entity-category: done
+  entity-device-class: done
+  entity-disabled-by-default: todo
+  entity-translations: done
+  exception-translations: done
+  icon-translations: todo
+  reconfiguration-flow: todo
+  repair-issues: done
+  stale-devices: done
+
+  # Platinum
+  async-dependency:
+    status: exempt
+    comment: The integration has no external client library.
+  inject-websession:
+    status: exempt
+    comment: The integration has no HTTP client.
+  strict-typing: todo

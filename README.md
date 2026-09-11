@@ -3,8 +3,8 @@
 Route AI calls across several providers from a single entity, with rotation to
 spread daily quotas and automatic failover when a provider refuses.
 
-[![CI](https://github.com/jmorille/ha-ai-pool/actions/workflows/ci.yml/badge.svg)](https://github.com/jmorille/ha-ai-pool/actions/workflows/ci.yml)
-[![Validate](https://github.com/jmorille/ha-ai-pool/actions/workflows/validate.yml/badge.svg)](https://github.com/jmorille/ha-ai-pool/actions/workflows/validate.yml)
+[![CI](https://github.com/FiveElements/ha-ai-pool/actions/workflows/ci.yml/badge.svg)](https://github.com/FiveElements/ha-ai-pool/actions/workflows/ci.yml)
+[![Validate](https://github.com/FiveElements/ha-ai-pool/actions/workflows/validate.yml/badge.svg)](https://github.com/FiveElements/ha-ai-pool/actions/workflows/validate.yml)
 
 A pool publishes **one** entity in the domain it fronts. Your automations call
 that entity and know nothing about the routing:
@@ -60,7 +60,7 @@ resort. A wrong guess about a quota should never turn into a silent no-op.
 
 ### HACS
 
-Add `https://github.com/jmorille/ha-ai-pool` as a custom repository of type
+Add `https://github.com/FiveElements/ha-ai-pool` as a custom repository of type
 *Integration*, install **AI Pool**, restart Home Assistant, then add the
 integration from *Settings → Devices & Services*.
 
@@ -69,6 +69,32 @@ integration from *Settings → Devices & Services*.
 Copy `custom_components/ai_pool` into your Home Assistant `config/custom_components`
 directory and restart.
 
+### Removal
+
+Delete the integration from *Settings → Devices & Services*. That removes the
+pool entity, its diagnostic sensors, the persisted usage counters, and any
+duplicate-model repair. Member provider integrations and their credentials are
+left alone.
+
+### Installation parameters
+
+These are the fields on the three setup steps. Changing members or policy later
+uses the same fields, except **pool type**, which is fixed at creation.
+
+| Parameter | Step | Meaning |
+| --------- | ---- | ------- |
+| Name | 1 | Title of the pool entity and its device. |
+| Pool type | 1 | Domain the pool publishes in (`ai_task`, `conversation`, `tts`, `stt`). |
+| Members | 2 | Entities of that domain, in preference order. |
+| Strategy | 2 | How the next healthy member is chosen. |
+| Cooldown | 2 | Sit-out after a capacity refusal (seconds). Consecutive refusals double it. |
+| Max attempts | 2 | Members tried per request before giving up. |
+| Timeout | 2 | Seconds to wait for one member. `0` waits forever. |
+| Audio retry buffer | 2 | Speech-to-text only. Megabytes kept so a second member can hear the same recording. |
+| Requests per day | 3 | Declared daily allowance per member. `0` if unknown. |
+| Requests per minute | 3 | Declared per-minute allowance per member. `0` if unknown. |
+| Weight | 3 | Bias for `least_used` routing. |
+
 ## Configuration
 
 Everything is configured in the UI, in three steps:
@@ -76,7 +102,9 @@ Everything is configured in the UI, in three steps:
 1. **Name and type** — which domain the pool fronts. This cannot be changed
    afterwards, because it decides which platform is loaded.
 2. **Members and policy** — the member entities, in preference order, plus the
-   selection strategy, the cooldown, and the cap on attempts per call.
+   selection strategy, the cooldown, the cap on attempts per call, and the
+   per-member deadline. Speech-to-text pools also set the audio retry buffer
+   (megabytes kept in memory so a second member can hear the same recording).
 3. **Daily allowances** — a declared limit and a weight per member. Use `0` when
    you do not know the limit.
 
@@ -169,10 +197,29 @@ allowances; and "specified rate limits are not guaranteed and actual capacity
 may vary", so a member can refuse while well inside its declared limit.
 
 That last point is why `failures_capacity` and `failures_quota` are counted
-separately. A `429 RESOURCE_EXHAUSTED` is your limit; a `503 UNAVAILABLE` is the
-model's serving capacity, shared by everyone using it and documented nowhere.
-Two members on separate accounts can be refused in the same minute if they point
-at the same model — the fix for that is different models, not more accounts.
+separately. A `429 RESOURCE_EXHAUSTED` is your limit; a `503 UNAVAILABLE` is
+this key being told the model is busy. Another account on the same model is
+still worth asking: that 503 is not a signal about the other keys. The pool
+only skips other members of **the same account** on that model for the rest
+of *this* request. Spreading daily allowance across accounts remains the
+reason to keep both members.
+
+### Members that are secretly the same account
+
+Two API keys on `gemini-flash-latest` are two daily counters, which is the
+point of a pool. Two entities of **one** account on that model are the same
+membership listed twice: they share a quota and fail together.
+
+The pool therefore reads each member's model *and* the provider config entry
+that owns it — the subentry first, for providers that publish several entities
+per account. It raises a **repair** only when members share a model *and* an
+account. And on a capacity failover it **skips** other members of that same
+account on the model that just refused — not the other keys. A skip is not
+charged as an attempt.
+
+Providers name that option as they please and are free to change it, so this is
+a heuristic: an unreadable model is reported as `null` and carries no
+conclusion, never a false match.
 
 ### When the pool cannot serve
 
@@ -194,25 +241,6 @@ polling anything:
 
 Both also carry `entry_id`, `pool` and `pool_type`, so one automation can watch
 every pool and branch on the payload. A working pool fires nothing.
-
-### Members that are secretly the same model
-
-A capacity refusal comes from the model, not from the account: the moment two
-members are backed by the same model they fail together, and the pool has
-nothing left to route to. Two accounts on `gemini-flash-latest` are not two
-members, they are one member listed twice.
-
-The pool therefore reads each member's model from that member's own config
-entry - the subentry first, for providers that publish several entities per
-account - and does two things with it. It raises a **repair** when members share
-a model, because such a pool looks healthy in every sensor right up until it
-doesn't. And on failover it **skips** members backed by the model that just
-refused for capacity, rather than asking the same engine the same question. A
-skip is not charged as an attempt.
-
-Providers name that option as they please and are free to change it, so this is
-a heuristic: an unreadable model is reported as `null` and carries no
-conclusion, never a false match.
 
 ### Giving up on a member
 
@@ -277,7 +305,8 @@ not a question about today.
 - **`tts`** — languages and options are the *union* across members; a member
   that cannot handle a request raises and the next one is tried.
 - **`stt`** — audio is buffered so a second member can be given the same
-  recording. Audio *format* capabilities are the *intersection* across members,
+  recording. The buffer defaults to 8 MB and is set in the members step of
+  the UI. Audio *format* capabilities are the *intersection* across members,
   because the pipeline encodes once before any member is chosen. A recording
   larger than the buffer limit is clipped to what fits and gets **one attempt
   with no failover**: handing the same half-sentence to a second member cannot
@@ -309,10 +338,14 @@ those versions.
 
 ### Where this integration stands against the quality scale
 
-The manifest declares no `quality_scale`, deliberately. Measured against Home
-Assistant's [integration quality scale](https://developers.home-assistant.io/docs/core/integration-quality-scale/)
-it does not hold bronze, and claiming a tier it does not hold would be worse
-than claiming none. Two rules it knowingly departs from:
+Progress is tracked in
+[`quality_scale.yaml`](custom_components/ai_pool/quality_scale.yaml) against
+Home Assistant's [integration quality scale](https://developers.home-assistant.io/docs/core/integration-quality-scale/).
+The manifest declares **bronze**. Silver is not claimed yet: `test-coverage`
+(≥95%) is still open, and a listing in the Home Assistant brands repository
+can follow the in-repo `icon.png`.
+
+Rules this integration keeps as exemptions:
 
 - **`has-entity-name`** — the pool entity is named explicitly. `Entity.name`
   returns `_attr_name` verbatim, and the device name is composed in later and

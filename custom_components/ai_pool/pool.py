@@ -53,7 +53,7 @@ from .const import (
     STATUS_UNAVAILABLE,
 )
 from .errors import FailureKind, Verdict, classify
-from .models import member_model, shared_models
+from .models import member_config_entry_id, member_model, shared_account_models
 from .store import UsageStore, days_ahead, parse_iso
 from .strategies import Candidate, order_candidates
 from .views import MemberView
@@ -277,12 +277,19 @@ class AIPool:
         return self._models[entity_id]
 
     def duplicate_models(self) -> dict[str, list[str]]:
-        """Models used by more than one member of this pool."""
-        return shared_models(
+        """Models used more than once *on the same provider account*."""
+        # Read live, not through the sensor cache: a repair that lags an
+        # options change would keep warning about an account the user just
+        # split.
+        return shared_account_models(
             {
-                member.entity_id: self.member_model(member.entity_id)
+                member.entity_id: member_model(self.hass, member.entity_id)
                 for member in self.members
-            }
+            },
+            {
+                member.entity_id: member_config_entry_id(self.hass, member.entity_id)
+                for member in self.members
+            },
         )
 
     @property
@@ -303,11 +310,11 @@ class AIPool:
 
     @callback
     def async_check_models(self) -> None:
-        """Raise or clear a repair issue about members sharing a model.
+        """Raise or clear a repair about the same account listed twice.
 
-        Worth a repair rather than a log line: a pool of duplicates looks
-        healthy in every sensor right up to the moment one provider-side
-        refusal takes all of them out together.
+        Two API keys on one model is the quota split. Two entities of one
+        account on one model look healthy in every sensor and still fail as
+        one when that key is refused.
         """
         issue_id = self._model_issue_id
         duplicates = self.duplicate_models()
@@ -535,19 +542,22 @@ class AIPool:
         limit = self.max_attempts if attempt_limit is None else max(attempt_limit, 1)
         attempts = 0
         last_error: BaseException | None = None
-        # Models that just refused for capacity. Asking a second member backed
-        # by the same model is asking the same engine the same question.
-        spent_models: set[str] = set()
+        # A 503 is this key's view of the model, not every key's. Asking
+        # another account on the same model is the quota split. Asking the
+        # same account again is asking the same engine the same question.
+        spent_account_models: set[tuple[str, str]] = set()
 
         for member in queue:
             if attempts >= limit:
                 break
             model = self.member_model(member.entity_id)
-            if model and model in spent_models:
+            account = member_config_entry_id(self.hass, member.entity_id)
+            if model and account and (account, model) in spent_account_models:
                 _LOGGER.debug(
-                    "Pool %s: skipping %s, model %s just refused for capacity",
+                    "Pool %s: skipping %s, account %s already refused %s",
                     self.entry.title,
                     member.entity_id,
+                    account,
                     model,
                 )
                 continue
@@ -568,8 +578,8 @@ class AIPool:
                 state.record_failure(verdict.kind.value)
                 state.last_error = f"{verdict.kind.value}: {verdict.message}"[:255]
                 self._apply_verdict(member, verdict)
-                if verdict.kind is FailureKind.CAPACITY and model:
-                    spent_models.add(model)
+                if verdict.kind is FailureKind.CAPACITY and model and account:
+                    spent_account_models.add((account, model))
                 _LOGGER.warning(
                     "Pool %s: member %s failed %s (%s), trying next",
                     self.entry.title,

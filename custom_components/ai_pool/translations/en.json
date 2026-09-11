@@ -7,6 +7,10 @@
         "data": {
           "name": "Name",
           "pool_type": "Pool type"
+        },
+        "data_description": {
+          "name": "Shown on the pool entity and on its diagnostic sensors.",
+          "pool_type": "Which domain the pool publishes in. This cannot be changed afterwards, because it decides which platform is loaded."
         }
       },
       "members": {
@@ -17,15 +21,21 @@
           "strategy": "Selection strategy",
           "cooldown_seconds": "Cooldown after a capacity refusal",
           "max_attempts": "Maximum members tried per call",
-          "timeout_seconds": "Give up on a member after"
+          "timeout_seconds": "Give up on a member after",
+          "stt_buffer_limit": "Audio retry buffer"
         },
         "data_description": {
-          "timeout_seconds": "How long to wait for one member before abandoning it and trying the next. 0 waits forever."
+          "members": "Entities of this pool's domain, in preference order. Pool entities are excluded so a pool cannot contain itself.",
+          "strategy": "How the next member is chosen when several are healthy. Round robin spreads daily quotas; priority is pure failover.",
+          "cooldown_seconds": "How long a member sits out after a capacity refusal. Consecutive refusals double this, up to an hour.",
+          "max_attempts": "How many members to try for one request before giving up.",
+          "timeout_seconds": "How long to wait for one member before abandoning it and trying the next. 0 waits forever.",
+          "stt_buffer_limit": "How much of a recording to keep so a second member can hear the same audio. A recording larger than this is clipped and gets one attempt with no failover. The default is 8 MB."
         }
       },
       "limits": {
         "title": "Allowances",
-        "description": "Declared allowances per member for {members}: requests per day, then requests per minute. Use 0 where the limit is unknown. Providers do not report remaining quota, so these numbers only steer the rotation — a real refusal is always detected from the error. Google publishes no fixed figures and does not guarantee them: read your own in AI Studio, and note they apply per project rather than per API key.",
+        "description": "For each member of {members}, three numbers in order: requests per day (req/day), requests per minute (req/min), then the routing weight. Use 0 where the limit is unknown. Providers do not report remaining quota, so these numbers only steer the rotation — a real refusal is always detected from the error. Google publishes no fixed figures and does not guarantee them: read your own in AI Studio, and note they apply per project rather than per API key.",
         "data": {}
       }
     },
@@ -46,15 +56,21 @@
           "strategy": "Selection strategy",
           "cooldown_seconds": "Cooldown after a capacity refusal",
           "max_attempts": "Maximum members tried per call",
-          "timeout_seconds": "Give up on a member after"
+          "timeout_seconds": "Give up on a member after",
+          "stt_buffer_limit": "Audio retry buffer"
         },
         "data_description": {
-          "timeout_seconds": "How long to wait for one member before abandoning it and trying the next. 0 waits forever."
+          "members": "Entities of this pool's domain, in preference order. Pool entities are excluded so a pool cannot contain itself.",
+          "strategy": "How the next member is chosen when several are healthy. Round robin spreads daily quotas; priority is pure failover.",
+          "cooldown_seconds": "How long a member sits out after a capacity refusal. Consecutive refusals double this, up to an hour.",
+          "max_attempts": "How many members to try for one request before giving up.",
+          "timeout_seconds": "How long to wait for one member before abandoning it and trying the next. 0 waits forever.",
+          "stt_buffer_limit": "How much of a recording to keep so a second member can hear the same audio. A recording larger than this is clipped and gets one attempt with no failover. The default is 8 MB."
         }
       },
       "limits": {
         "title": "Allowances",
-        "description": "Declared allowances per member for {members}: requests per day, then requests per minute. Use 0 where the limit is unknown. Providers do not report remaining quota, so these numbers only steer the rotation — a real refusal is always detected from the error. Google publishes no fixed figures and does not guarantee them: read your own in AI Studio, and note they apply per project rather than per API key.",
+        "description": "For each member of {members}, three numbers in order: requests per day (req/day), requests per minute (req/min), then the routing weight. Use 0 where the limit is unknown. Providers do not report remaining quota, so these numbers only steer the rotation — a real refusal is always detected from the error. Google publishes no fixed figures and does not guarantee them: read your own in AI Studio, and note they apply per project rather than per API key.",
         "data": {}
       }
     },
@@ -100,8 +116,8 @@
   },
   "issues": {
     "duplicate_model": {
-      "title": "Members of {pool} share a model",
-      "description": "Several members of {pool} are backed by the same model: {models}. A capacity refusal comes from the model rather than from the account, so those members fail together and the pool cannot route around it. Point them at different models, or remove the duplicates."
+      "title": "Members of {pool} share a model on the same account",
+      "description": "Several members of {pool} use the same model on the same API key: {models}. Two accounts on one model split daily quotas; two entities of one account do not. Point them at different models, or remove the duplicate."
     }
   },
   "services": {

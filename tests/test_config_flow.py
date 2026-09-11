@@ -5,6 +5,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.ai_pool.config_flow import _pool_key, _stt_buffer_mb
 from custom_components.ai_pool.const import (
     CONF_COOLDOWN,
     CONF_DAILY_LIMIT,
@@ -13,7 +14,11 @@ from custom_components.ai_pool.const import (
     CONF_POOL_TYPE,
     CONF_RPM_LIMIT,
     CONF_STRATEGY,
+    CONF_STT_BUFFER_LIMIT,
+    CONF_TIMEOUT,
     CONF_WEIGHT,
+    DEFAULT_STT_BUFFER_LIMIT,
+    DEFAULT_TIMEOUT,
     DOMAIN,
     STRATEGY_LEAST_USED,
     STRATEGY_ROUND_ROBIN,
@@ -21,6 +26,29 @@ from custom_components.ai_pool.const import (
 
 A = "ai_task.member_a"
 B = "ai_task.member_b"
+STT_A = "stt.member_a"
+STT_B = "stt.member_b"
+
+
+def _schema_keys(result: dict) -> dict:
+    """Index a form schema by field name."""
+    return {str(key): key for key in result["data_schema"].schema}
+
+
+async def _start_members_step(hass: HomeAssistant, name: str, pool_type: str) -> dict:
+    """Walk a new flow as far as the members-and-policy form."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    return await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"name": name, CONF_POOL_TYPE: pool_type}
+    )
+
+
+def test_stt_buffer_form_shows_whole_megabytes() -> None:
+    assert _stt_buffer_mb(8 * 1024 * 1024) == 8
+    assert _stt_buffer_mb(4 * 1024 * 1024) == 4
+    assert _stt_buffer_mb(None) == 8
 
 
 async def test_full_flow_creates_a_pool(hass: HomeAssistant) -> None:
@@ -42,6 +70,7 @@ async def test_full_flow_creates_a_pool(hass: HomeAssistant) -> None:
             CONF_STRATEGY: STRATEGY_ROUND_ROBIN,
             CONF_COOLDOWN: 300,
             CONF_MAX_ATTEMPTS: 3,
+            CONF_TIMEOUT: 90,
         },
     )
     assert result["step_id"] == "limits"
@@ -63,6 +92,8 @@ async def test_full_flow_creates_a_pool(hass: HomeAssistant) -> None:
     data = result["data"]
     assert data[CONF_POOL_TYPE] == "ai_task"
     assert data[CONF_STRATEGY] == STRATEGY_ROUND_ROBIN
+    assert data[CONF_TIMEOUT] == 90
+    assert CONF_STT_BUFFER_LIMIT not in data
     assert data[CONF_MEMBERS] == [
         {
             "entity_id": A,
@@ -194,3 +225,194 @@ async def test_options_flow_keeps_existing_limits_as_defaults(
     assert schema_keys[f"limit_{A}"].default() == 777
     assert schema_keys[f"rpm_{A}"].default() == 12
     assert schema_keys[f"weight_{A}"].default() == 4
+
+
+async def test_members_step_exposes_timeout_with_the_documented_default(
+    hass: HomeAssistant,
+) -> None:
+    result = await _start_members_step(hass, "Timeout", "ai_task")
+    schema = _schema_keys(result)
+    assert CONF_TIMEOUT in schema
+    assert schema[CONF_TIMEOUT].default() == DEFAULT_TIMEOUT
+    assert CONF_STT_BUFFER_LIMIT not in schema
+
+
+async def test_stt_members_step_exposes_the_audio_buffer(
+    hass: HomeAssistant,
+) -> None:
+    """Speech-to-text is the only type that has to keep the recording around."""
+    result = await _start_members_step(hass, "Listen", "stt")
+    schema = _schema_keys(result)
+    assert CONF_STT_BUFFER_LIMIT in schema
+    assert schema[CONF_STT_BUFFER_LIMIT].default() == 8
+
+
+async def test_stt_flow_stores_the_buffer_in_bytes(
+    hass: HomeAssistant,
+) -> None:
+    result = await _start_members_step(hass, "Listen", "stt")
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_MEMBERS: [STT_A, STT_B],
+            CONF_STRATEGY: STRATEGY_ROUND_ROBIN,
+            CONF_COOLDOWN: 300,
+            CONF_MAX_ATTEMPTS: 3,
+            CONF_TIMEOUT: DEFAULT_TIMEOUT,
+            CONF_STT_BUFFER_LIMIT: 4,
+        },
+    )
+    assert result["step_id"] == "limits"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            f"limit_{STT_A}": 0,
+            f"rpm_{STT_A}": 0,
+            f"weight_{STT_A}": 1,
+            f"limit_{STT_B}": 0,
+            f"rpm_{STT_B}": 0,
+            f"weight_{STT_B}": 1,
+        },
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_STT_BUFFER_LIMIT] == 4 * 1024 * 1024
+
+
+async def test_creating_a_second_pool_over_the_same_members_aborts(
+    hass: HomeAssistant,
+) -> None:
+    """Two pools on the same members would each spend the allowance twice."""
+    existing = MockConfigEntry(
+        domain=DOMAIN,
+        title="Existing",
+        unique_id=_pool_key("ai_task", [A, B]),
+        data={
+            CONF_POOL_TYPE: "ai_task",
+            CONF_STRATEGY: STRATEGY_ROUND_ROBIN,
+            CONF_COOLDOWN: 300,
+            CONF_MAX_ATTEMPTS: 3,
+            CONF_MEMBERS: [
+                {"entity_id": A, CONF_DAILY_LIMIT: 100, CONF_WEIGHT: 1},
+                {"entity_id": B, CONF_DAILY_LIMIT: 100, CONF_WEIGHT: 1},
+            ],
+        },
+    )
+    existing.add_to_hass(hass)
+
+    result = await _start_members_step(hass, "Copy", "ai_task")
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            # Order is not identity: the same members backwards are still them.
+            CONF_MEMBERS: [B, A],
+            CONF_STRATEGY: STRATEGY_ROUND_ROBIN,
+            CONF_COOLDOWN: 300,
+            CONF_MAX_ATTEMPTS: 3,
+            CONF_TIMEOUT: DEFAULT_TIMEOUT,
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            f"limit_{B}": 0,
+            f"rpm_{B}": 0,
+            f"weight_{B}": 1,
+            f"limit_{A}": 0,
+            f"rpm_{A}": 0,
+            f"weight_{A}": 1,
+        },
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+
+
+async def test_options_flow_rejects_a_member_set_another_pool_already_covers(
+    hass: HomeAssistant,
+) -> None:
+    first = MockConfigEntry(
+        domain=DOMAIN,
+        title="First",
+        unique_id=_pool_key("ai_task", [A]),
+        data={
+            CONF_POOL_TYPE: "ai_task",
+            CONF_STRATEGY: STRATEGY_ROUND_ROBIN,
+            CONF_COOLDOWN: 300,
+            CONF_MAX_ATTEMPTS: 3,
+            CONF_MEMBERS: [{"entity_id": A, CONF_DAILY_LIMIT: 100, CONF_WEIGHT: 1}],
+        },
+    )
+    first.add_to_hass(hass)
+    second = MockConfigEntry(
+        domain=DOMAIN,
+        title="Second",
+        unique_id=_pool_key("ai_task", [B]),
+        data={
+            CONF_POOL_TYPE: "ai_task",
+            CONF_STRATEGY: STRATEGY_ROUND_ROBIN,
+            CONF_COOLDOWN: 300,
+            CONF_MAX_ATTEMPTS: 3,
+            CONF_MEMBERS: [{"entity_id": B, CONF_DAILY_LIMIT: 100, CONF_WEIGHT: 1}],
+        },
+    )
+    second.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(second.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_MEMBERS: [A],
+            CONF_STRATEGY: STRATEGY_ROUND_ROBIN,
+            CONF_COOLDOWN: 300,
+            CONF_MAX_ATTEMPTS: 3,
+            CONF_TIMEOUT: DEFAULT_TIMEOUT,
+        },
+    )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {f"limit_{A}": 100, f"rpm_{A}": 0, f"weight_{A}": 1},
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "duplicate_members"}
+
+
+async def test_options_flow_keeps_an_stt_buffer_as_the_default(
+    hass: HomeAssistant,
+) -> None:
+    """Re-opening options must not silently restore the 8 MB default."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Listen",
+        data={
+            CONF_POOL_TYPE: "stt",
+            CONF_STRATEGY: STRATEGY_ROUND_ROBIN,
+            CONF_COOLDOWN: 300,
+            CONF_MAX_ATTEMPTS: 3,
+            CONF_STT_BUFFER_LIMIT: 4 * 1024 * 1024,
+            CONF_MEMBERS: [{"entity_id": STT_A, CONF_DAILY_LIMIT: 0, CONF_WEIGHT: 1}],
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    schema = _schema_keys(result)
+    assert schema[CONF_STT_BUFFER_LIMIT].default() == 4
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_MEMBERS: [STT_A],
+            CONF_STRATEGY: STRATEGY_ROUND_ROBIN,
+            CONF_COOLDOWN: 300,
+            CONF_MAX_ATTEMPTS: 3,
+            CONF_TIMEOUT: DEFAULT_TIMEOUT,
+            CONF_STT_BUFFER_LIMIT: 16,
+        },
+    )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {f"limit_{STT_A}": 0, f"rpm_{STT_A}": 0, f"weight_{STT_A}": 1},
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.data[CONF_STT_BUFFER_LIMIT] == 16 * 1024 * 1024
+    assert entry.data[CONF_STT_BUFFER_LIMIT] != DEFAULT_STT_BUFFER_LIMIT

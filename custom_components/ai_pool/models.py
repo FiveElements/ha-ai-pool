@@ -1,14 +1,18 @@
 """Resolve which provider model sits behind a member entity.
 
-Several members pointing at the same model is not a pool. A capacity refusal is
-issued by the model, not by the account, so the moment two members share one
-they fail together - and the pool, which knows only entity ids, cannot see the
-duplication that defeats it.
+Two members on the same model are a pool when they are two accounts: that is
+the quota split this integration exists to provide. They are a duplicate when
+they share a provider config entry - one API key listed twice.
+
+A capacity refusal is this key's view of the model, not every other key's,
+so a failover still tries the next account. It only skips other members of
+the same account on that model. The repair is the same shape: it only fires
+for the same-account case.
 
 Nothing in Home Assistant exposes "the model behind this entity", so this reads
 the member's own config entry. Providers name that option differently and are
 free to change it, which makes this a heuristic and not a lookup: an unknown
-model is reported as ``None`` and simply carries no conclusion.
+model or account is reported as ``None`` and simply carries no conclusion.
 """
 
 from __future__ import annotations
@@ -22,6 +26,19 @@ from homeassistant.helpers import entity_registry as er
 # Ordered by how specific they are. "chat_model" is what the Google and OpenAI
 # conversation entities store; "model" is the more common spelling elsewhere.
 MODEL_KEYS = ("chat_model", "model", "model_name")
+
+
+@callback
+def member_config_entry_id(hass: HomeAssistant, entity_id: str) -> str | None:
+    """Return the provider config entry that owns this member, if known.
+
+    Two entities on the same config entry share an API key. Two entities on
+    different entries are two accounts.
+    """
+    registry_entry = er.async_get(hass).async_get(entity_id)
+    if registry_entry is None:
+        return None
+    return registry_entry.config_entry_id
 
 
 @callback
@@ -67,3 +84,28 @@ def shared_models(models: Mapping[str, str | None]) -> dict[str, list[str]]:
             continue
         by_model.setdefault(model, []).append(entity_id)
     return {model: members for model, members in by_model.items() if len(members) > 1}
+
+
+@callback
+def shared_account_models(
+    models: Mapping[str, str | None],
+    accounts: Mapping[str, str | None],
+) -> dict[str, list[str]]:
+    """Members that share a model *and* a provider config entry.
+
+    Two accounts on the same model is quota rotation. Two entities on one
+    account and one model are the same membership listed twice. Unreadable
+    accounts, like unreadable models, conclude nothing.
+    """
+    by_key: dict[tuple[str, str], list[str]] = {}
+    for entity_id, model in models.items():
+        account = accounts.get(entity_id)
+        if not model or not account:
+            continue
+        by_key.setdefault((account, model), []).append(entity_id)
+
+    duplicates: dict[str, list[str]] = {}
+    for (_account, model), members in by_key.items():
+        if len(members) > 1:
+            duplicates.setdefault(model, []).extend(members)
+    return duplicates

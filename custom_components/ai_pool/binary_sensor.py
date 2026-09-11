@@ -9,6 +9,7 @@ automation can notify about.
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any
 
 from homeassistant.components.binary_sensor import (
@@ -25,6 +26,10 @@ from .const import DOMAIN, STATUS_HEALTHY
 from .pool import AIPool
 
 PARALLEL_UPDATES = 0
+# Cooldowns start at five minutes and member availability can change without
+# the pool being involved, so a minute is tight enough to notice and loose
+# enough not to poll for its own sake.
+SCAN_INTERVAL = timedelta(minutes=1)
 
 
 async def async_setup_entry(

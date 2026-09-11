@@ -7,6 +7,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.ai_pool.binary_sensor import SCAN_INTERVAL
 from custom_components.ai_pool.const import (
     CONF_COOLDOWN,
     CONF_DAILY_LIMIT,
@@ -15,12 +16,18 @@ from custom_components.ai_pool.const import (
     CONF_POOL_TYPE,
     CONF_STRATEGY,
     CONF_WEIGHT,
+    CONFIG_VERSION,
     DOMAIN,
     STRATEGY_ROUND_ROBIN,
 )
 
 A = "member_a"
 B = "member_b"
+
+
+def test_problem_sensor_polls_once_a_minute() -> None:
+    """Member availability can change without the pool, so this one polls."""
+    assert SCAN_INTERVAL.total_seconds() == 60
 
 
 def build_entry(pool_type: str) -> MockConfigEntry:
@@ -132,3 +139,87 @@ async def test_options_update_triggers_reload(hass: HomeAssistant) -> None:
     assert entry.state is ConfigEntryState.LOADED
     assert len(entry.runtime_data.members) == 1
     assert entry.runtime_data.max_attempts == 1
+
+
+async def test_setup_removes_sensors_for_members_that_left(
+    hass: HomeAssistant,
+) -> None:
+    """A departed member used to leave unavailable sensors in the registry."""
+    assert await async_setup_component(hass, "ai_task", {})
+
+    entry = build_entry("ai_task")
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    orphan = registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{entry.entry_id}_ai_task.retired",
+        config_entry=entry,
+        suggested_object_id="retired_calls",
+    )
+    orphan_id = orphan.entity_id
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert registry.async_get(orphan_id) is None
+
+
+async def test_dropping_a_member_prunes_its_sensors(hass: HomeAssistant) -> None:
+    """Reload is what actually removes the leftover registry rows."""
+    assert await async_setup_component(hass, "ai_task", {})
+
+    entry = build_entry("ai_task")
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    retired = f"{entry.entry_id}_ai_task.member_b"
+    registry = er.async_get(hass)
+    assert any(
+        item.unique_id == retired
+        for item in er.async_entries_for_config_entry(registry, entry.entry_id)
+    )
+
+    hass.config_entries.async_update_entry(
+        entry,
+        options={
+            CONF_POOL_TYPE: "ai_task",
+            CONF_STRATEGY: STRATEGY_ROUND_ROBIN,
+            CONF_COOLDOWN: 300,
+            CONF_MAX_ATTEMPTS: 3,
+            CONF_MEMBERS: [
+                {
+                    "entity_id": "ai_task.member_a",
+                    CONF_DAILY_LIMIT: 100,
+                    CONF_WEIGHT: 1,
+                }
+            ],
+        },
+    )
+    await hass.async_block_till_done()
+
+    leftover = [
+        item.unique_id
+        for item in er.async_entries_for_config_entry(registry, entry.entry_id)
+        if "member_b" in item.unique_id
+    ]
+    assert leftover == []
+
+
+async def test_a_schema_from_the_future_is_not_guessed_at(
+    hass: HomeAssistant,
+) -> None:
+    """Rejecting unknown versions is why the migrate hook exists at all."""
+    assert await async_setup_component(hass, "ai_task", {})
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="ai_task pool",
+        version=CONFIG_VERSION + 1,
+        data=build_entry("ai_task").data,
+    )
+    entry.add_to_hass(hass)
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.MIGRATION_ERROR

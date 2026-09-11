@@ -3,29 +3,39 @@
     "step": {
       "user": {
         "title": "Ajouter un pool IA",
-        "description": "Un pool publie une entite unique qui repartit les appels entre plusieurs fournisseurs.",
+        "description": "Un pool publie une entité unique qui répartit les appels entre plusieurs fournisseurs.",
         "data": {
           "name": "Nom",
           "pool_type": "Type de pool"
+        },
+        "data_description": {
+          "name": "Affiché sur l'entité du pool et sur ses capteurs de diagnostic.",
+          "pool_type": "Le domaine dans lequel le pool publie. Il ne peut plus être changé ensuite, car il décide quelle plateforme est chargée."
         }
       },
       "members": {
         "title": "Membres et politique",
-        "description": "Les membres sont essayes dans l'ordre decide par la strategie. Un membre en echec est ecarte et le suivant est essaye.",
+        "description": "Les membres sont essayés dans l'ordre décidé par la stratégie. Un membre en échec est écarté et le suivant est essayé.",
         "data": {
           "members": "Membres",
-          "strategy": "Strategie de selection",
-          "cooldown_seconds": "Mise a l'ecart apres un refus de capacite",
-          "max_attempts": "Nombre maximal de membres essayes par appel",
-          "timeout_seconds": "Abandonner un membre apres"
+          "strategy": "Stratégie de sélection",
+          "cooldown_seconds": "Mise à l'écart après un refus de capacité",
+          "max_attempts": "Nombre maximal de membres essayés par appel",
+          "timeout_seconds": "Abandonner un membre après",
+          "stt_buffer_limit": "Tampon audio pour les réessais"
         },
         "data_description": {
-          "timeout_seconds": "Duree d'attente d'un membre avant de l'abandonner et d'essayer le suivant. 0 attend indefiniment."
+          "members": "Entités du domaine de ce pool, dans l'ordre de préférence. Les entités de pool sont exclues pour qu'un pool ne puisse pas se contenir lui-même.",
+          "strategy": "Comment le membre suivant est choisi lorsque plusieurs sont sains. Le tourniquet répartit les quotas quotidiens ; la priorité n'est que du basculement.",
+          "cooldown_seconds": "Durée de mise à l'écart après un refus de capacité. Les refus consécutifs doublent cette durée, jusqu'à une heure.",
+          "max_attempts": "Nombre de membres à essayer pour une requête avant d'abandonner.",
+          "timeout_seconds": "Durée d'attente d'un membre avant de l'abandonner et d'essayer le suivant. 0 attend indéfiniment.",
+          "stt_buffer_limit": "Quantité d'enregistrement conservée pour qu'un second membre entende le même audio. Un enregistrement plus grand est tronqué et n'a droit qu'à une seule tentative, sans bascule. La valeur par défaut est 8 Mo."
         }
       },
       "limits": {
         "title": "Quotas",
-        "description": "Quotas declares par membre pour {members} : requetes par jour, puis requetes par minute. Mettre 0 quand la limite est inconnue. Les fournisseurs n'exposent pas leur quota restant : ces valeurs ne servent qu'a orienter la rotation, un refus reel est toujours detecte a partir de l'erreur. Google ne publie plus de chiffres fixes et ne les garantit pas : lire les vos dans AI Studio, et retenir qu'ils s'appliquent par projet et non par cle API.",
+        "description": "Pour chaque membre de {members}, trois nombres dans l'ordre : requêtes par jour (req/day), requêtes par minute (req/min), puis le poids. Mettre 0 quand la limite est inconnue. Les fournisseurs n'exposent pas leur quota restant : ces valeurs ne servent qu'à orienter la rotation, un refus réel est toujours détecté à partir de l'erreur. Google ne publie plus de chiffres fixes et ne les garantit pas : lisez les vôtres dans AI Studio, et retenez qu'ils s'appliquent par projet et non par clé API.",
         "data": {}
       }
     },
@@ -33,50 +43,56 @@
       "no_members": "Choisir au moins un membre."
     },
     "abort": {
-      "already_configured": "Un pool de ce type couvre deja exactement ces membres. Deux pools sur les memes membres tiennent chacun leurs compteurs et croient chacun disposer de tout le quota."
+      "already_configured": "Un pool de ce type couvre déjà exactement ces membres. Deux pools sur les mêmes membres tiennent chacun leurs compteurs et croient chacun disposer de tout le quota."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Membres et politique",
-        "description": "Le type de pool n'est pas modifiable apres la creation.",
+        "description": "Le type de pool n'est pas modifiable après la création.",
         "data": {
           "members": "Membres",
-          "strategy": "Strategie de selection",
-          "cooldown_seconds": "Mise a l'ecart apres un refus de capacite",
-          "max_attempts": "Nombre maximal de membres essayes par appel",
-          "timeout_seconds": "Abandonner un membre apres"
+          "strategy": "Stratégie de sélection",
+          "cooldown_seconds": "Mise à l'écart après un refus de capacité",
+          "max_attempts": "Nombre maximal de membres essayés par appel",
+          "timeout_seconds": "Abandonner un membre après",
+          "stt_buffer_limit": "Tampon audio pour les réessais"
         },
         "data_description": {
-          "timeout_seconds": "Duree d'attente d'un membre avant de l'abandonner et d'essayer le suivant. 0 attend indefiniment."
+          "members": "Entités du domaine de ce pool, dans l'ordre de préférence. Les entités de pool sont exclues pour qu'un pool ne puisse pas se contenir lui-même.",
+          "strategy": "Comment le membre suivant est choisi lorsque plusieurs sont sains. Le tourniquet répartit les quotas quotidiens ; la priorité n'est que du basculement.",
+          "cooldown_seconds": "Durée de mise à l'écart après un refus de capacité. Les refus consécutifs doublent cette durée, jusqu'à une heure.",
+          "max_attempts": "Nombre de membres à essayer pour une requête avant d'abandonner.",
+          "timeout_seconds": "Durée d'attente d'un membre avant de l'abandonner et d'essayer le suivant. 0 attend indéfiniment.",
+          "stt_buffer_limit": "Quantité d'enregistrement conservée pour qu'un second membre entende le même audio. Un enregistrement plus grand est tronqué et n'a droit qu'à une seule tentative, sans bascule. La valeur par défaut est 8 Mo."
         }
       },
       "limits": {
         "title": "Quotas",
-        "description": "Quotas declares par membre pour {members} : requetes par jour, puis requetes par minute. Mettre 0 quand la limite est inconnue. Les fournisseurs n'exposent pas leur quota restant : ces valeurs ne servent qu'a orienter la rotation, un refus reel est toujours detecte a partir de l'erreur. Google ne publie plus de chiffres fixes et ne les garantit pas : lire les vos dans AI Studio, et retenir qu'ils s'appliquent par projet et non par cle API.",
+        "description": "Pour chaque membre de {members}, trois nombres dans l'ordre : requêtes par jour (req/day), requêtes par minute (req/min), puis le poids. Mettre 0 quand la limite est inconnue. Les fournisseurs n'exposent pas leur quota restant : ces valeurs ne servent qu'à orienter la rotation, un refus réel est toujours détecté à partir de l'erreur. Google ne publie plus de chiffres fixes et ne les garantit pas : lisez les vôtres dans AI Studio, et retenez qu'ils s'appliquent par projet et non par clé API.",
         "data": {}
       }
     },
     "error": {
       "no_members": "Choisir au moins un membre.",
-      "duplicate_members": "Un autre pool couvre deja exactement ces membres, et deux pools sur les memes membres depenseraient chacun le quota comme s'ils etaient seuls."
+      "duplicate_members": "Un autre pool couvre déjà exactement ces membres, et deux pools sur les mêmes membres dépenseraient chacun le quota comme s'ils étaient seuls."
     }
   },
   "selector": {
     "pool_type": {
       "options": {
-        "ai_task": "Tache IA",
+        "ai_task": "Tâche IA",
         "conversation": "Agent conversationnel",
-        "tts": "Synthese vocale",
+        "tts": "Synthèse vocale",
         "stt": "Reconnaissance vocale"
       }
     },
     "strategy": {
       "options": {
-        "round_robin": "Tourniquet (alterner a chaque appel)",
-        "least_used": "Moins utilise (le plus de quota restant d'abord)",
-        "priority": "Priorite (toujours dans l'ordre)"
+        "round_robin": "Tourniquet (alterner à chaque appel)",
+        "least_used": "Moins utilisé (le plus de quota restant d'abord)",
+        "priority": "Priorité (toujours dans l'ordre)"
       }
     }
   },
@@ -100,14 +116,14 @@
   },
   "issues": {
     "duplicate_model": {
-      "title": "Des membres de {pool} partagent un modele",
-      "description": "Plusieurs membres de {pool} reposent sur le meme modele : {models}. Un refus de capacite vient du modele et non du compte : ces membres echouent donc ensemble et le pool ne peut rien contourner. Faites-les pointer vers des modeles differents, ou supprimez les doublons."
+      "title": "Des membres de {pool} partagent un modèle sur le même compte",
+      "description": "Plusieurs membres de {pool} utilisent le même modèle avec la même clé API : {models}. Deux comptes sur un modèle répartissent les quotas quotidiens ; deux entités d'un même compte ne le font pas. Faites-les pointer vers des modèles différents, ou supprimez le doublon."
     }
   },
   "services": {
     "reset_member": {
-      "name": "Reinitialiser un membre",
-      "description": "Efface la mise a l'ecart, la marque de quota epuise et la desactivation permanente retenues contre un membre, pour qu'il soit reessaye immediatement.",
+      "name": "Réinitialiser un membre",
+      "description": "Efface la mise à l'écart, la marque de quota épuisé et la désactivation permanente retenues contre un membre, pour qu'il soit réessayé immédiatement.",
       "fields": {
         "pool": {
           "name": "Pool",
@@ -115,21 +131,21 @@
         },
         "member": {
           "name": "Membre",
-          "description": "L'entite membre a reinitialiser. Laisser vide pour reinitialiser tous les membres du pool."
+          "description": "L'entité membre à réinitialiser. Laisser vide pour réinitialiser tous les membres du pool."
         },
         "clear_counters": {
           "name": "Effacer aussi les compteurs du jour",
-          "description": "Leve un quota que le pool a compte comme epuise, en oubliant ce que le membre a deja fait aujourd'hui. Coute les metriques du jour pour ce membre, et c'est le seul moyen de le rendre eligible avant minuit."
+          "description": "Lève un quota que le pool a compté comme épuisé, en oubliant ce que le membre a déjà fait aujourd'hui. Coûte les métriques du jour pour ce membre, et c'est le seul moyen de le rendre éligible avant minuit."
         }
       }
     }
   },
   "exceptions": {
     "pool_not_found": {
-      "message": "Aucune entree AI Pool avec l'identifiant {pool}."
+      "message": "Aucune entrée AI Pool avec l'identifiant {pool}."
     },
     "pool_not_loaded": {
-      "message": "Le pool {pool} n'est pas charge, il n'y a rien a reinitialiser."
+      "message": "Le pool {pool} n'est pas chargé, il n'y a rien à réinitialiser."
     },
     "not_a_member": {
       "message": "{member} n'est pas membre de {pool}."

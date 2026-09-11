@@ -24,15 +24,18 @@ from .const import (
     CONF_POOL_TYPE,
     CONF_RPM_LIMIT,
     CONF_STRATEGY,
+    CONF_STT_BUFFER_LIMIT,
     CONF_TIMEOUT,
     CONF_WEIGHT,
     CONFIG_VERSION,
     DEFAULT_COOLDOWN,
     DEFAULT_MAX_ATTEMPTS,
     DEFAULT_STRATEGY,
+    DEFAULT_STT_BUFFER_LIMIT,
     DEFAULT_TIMEOUT,
     DEFAULT_WEIGHT,
     DOMAIN,
+    POOL_TYPE_STT,
     POOL_TYPES,
     STRATEGIES,
 )
@@ -40,6 +43,9 @@ from .const import (
 LIMIT_PREFIX = "limit_"
 RPM_PREFIX = "rpm_"
 WEIGHT_PREFIX = "weight_"
+# The form shows megabytes; storage and the STT entity keep bytes, which is
+# what the clip comparison actually measures.
+_BYTES_PER_MB = 1024 * 1024
 
 
 def _own_entities(hass) -> set[str]:
@@ -56,65 +62,105 @@ def _own_entities(hass) -> set[str]:
     }
 
 
+def _stt_buffer_mb(raw: Any) -> int:
+    """Convert a stored byte limit into the megabytes the form shows."""
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        value = DEFAULT_STT_BUFFER_LIMIT
+    return max(1, value // _BYTES_PER_MB)
+
+
+def _policy_from_input(user_input: dict[str, Any]) -> dict[str, Any]:
+    """Routing policy fields shared by the create and options flows."""
+    policy = {
+        CONF_STRATEGY: user_input[CONF_STRATEGY],
+        CONF_COOLDOWN: int(user_input[CONF_COOLDOWN]),
+        CONF_MAX_ATTEMPTS: int(user_input[CONF_MAX_ATTEMPTS]),
+        CONF_TIMEOUT: int(user_input.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)),
+    }
+    if CONF_STT_BUFFER_LIMIT in user_input:
+        policy[CONF_STT_BUFFER_LIMIT] = (
+            int(user_input[CONF_STT_BUFFER_LIMIT]) * _BYTES_PER_MB
+        )
+    return policy
+
+
 def _members_schema(
     hass,
     pool_type: str,
     defaults: dict[str, Any],
 ) -> vol.Schema:
     """Build the schema for picking members and the routing policy."""
-    return vol.Schema(
-        {
+    fields: dict[Any, Any] = {
+        vol.Required(
+            CONF_MEMBERS, default=defaults.get(CONF_MEMBERS, [])
+        ): selector.EntitySelector(
+            selector.EntitySelectorConfig(
+                domain=pool_type,
+                multiple=True,
+                exclude_entities=sorted(_own_entities(hass)),
+            )
+        ),
+        vol.Required(
+            CONF_STRATEGY, default=defaults.get(CONF_STRATEGY, DEFAULT_STRATEGY)
+        ): selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=list(STRATEGIES),
+                translation_key="strategy",
+                mode=selector.SelectSelectorMode.DROPDOWN,
+            )
+        ),
+        vol.Required(
+            CONF_COOLDOWN, default=defaults.get(CONF_COOLDOWN, DEFAULT_COOLDOWN)
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0,
+                max=86400,
+                step=30,
+                unit_of_measurement="s",
+                mode=selector.NumberSelectorMode.BOX,
+            )
+        ),
+        vol.Required(
+            CONF_MAX_ATTEMPTS,
+            default=defaults.get(CONF_MAX_ATTEMPTS, DEFAULT_MAX_ATTEMPTS),
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=1, max=10, step=1, mode=selector.NumberSelectorMode.BOX
+            )
+        ),
+        vol.Required(
+            CONF_TIMEOUT,
+            default=defaults.get(CONF_TIMEOUT, DEFAULT_TIMEOUT),
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0,
+                max=900,
+                step=5,
+                unit_of_measurement="s",
+                mode=selector.NumberSelectorMode.BOX,
+            )
+        ),
+    }
+    if pool_type == POOL_TYPE_STT:
+        fields[
             vol.Required(
-                CONF_MEMBERS, default=defaults.get(CONF_MEMBERS, [])
-            ): selector.EntitySelector(
-                selector.EntitySelectorConfig(
-                    domain=pool_type,
-                    multiple=True,
-                    exclude_entities=sorted(_own_entities(hass)),
-                )
-            ),
-            vol.Required(
-                CONF_STRATEGY, default=defaults.get(CONF_STRATEGY, DEFAULT_STRATEGY)
-            ): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=list(STRATEGIES),
-                    translation_key="strategy",
-                    mode=selector.SelectSelectorMode.DROPDOWN,
-                )
-            ),
-            vol.Required(
-                CONF_COOLDOWN, default=defaults.get(CONF_COOLDOWN, DEFAULT_COOLDOWN)
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=0,
-                    max=86400,
-                    step=30,
-                    unit_of_measurement="s",
-                    mode=selector.NumberSelectorMode.BOX,
-                )
-            ),
-            vol.Required(
-                CONF_MAX_ATTEMPTS,
-                default=defaults.get(CONF_MAX_ATTEMPTS, DEFAULT_MAX_ATTEMPTS),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=1, max=10, step=1, mode=selector.NumberSelectorMode.BOX
-                )
-            ),
-            vol.Required(
-                CONF_TIMEOUT,
-                default=defaults.get(CONF_TIMEOUT, DEFAULT_TIMEOUT),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=0,
-                    max=900,
-                    step=5,
-                    unit_of_measurement="s",
-                    mode=selector.NumberSelectorMode.BOX,
-                )
-            ),
-        }
-    )
+                CONF_STT_BUFFER_LIMIT,
+                default=_stt_buffer_mb(
+                    defaults.get(CONF_STT_BUFFER_LIMIT, DEFAULT_STT_BUFFER_LIMIT)
+                ),
+            )
+        ] = selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=1,
+                max=64,
+                step=1,
+                unit_of_measurement="MB",
+                mode=selector.NumberSelectorMode.BOX,
+            )
+        )
+    return vol.Schema(fields)
 
 
 def _limits_schema(member_ids: list[str], existing: list[dict[str, Any]]) -> vol.Schema:
@@ -135,7 +181,11 @@ def _limits_schema(member_ids: list[str], existing: list[dict[str, Any]]) -> vol
             )
         ] = selector.NumberSelector(
             selector.NumberSelectorConfig(
-                min=0, max=1000000, step=1, mode=selector.NumberSelectorMode.BOX
+                min=0,
+                max=1000000,
+                step=1,
+                unit_of_measurement="req/day",
+                mode=selector.NumberSelectorMode.BOX,
             )
         )
         fields[
@@ -145,7 +195,11 @@ def _limits_schema(member_ids: list[str], existing: list[dict[str, Any]]) -> vol
             )
         ] = selector.NumberSelector(
             selector.NumberSelectorConfig(
-                min=0, max=100000, step=1, mode=selector.NumberSelectorMode.BOX
+                min=0,
+                max=100000,
+                step=1,
+                unit_of_measurement="req/min",
+                mode=selector.NumberSelectorMode.BOX,
             )
         )
         fields[
@@ -231,14 +285,7 @@ class AIPoolConfigFlow(ConfigFlow, domain=DOMAIN):
             if not self._member_ids:
                 errors[CONF_MEMBERS] = "no_members"
             else:
-                self._draft.update(
-                    {
-                        CONF_STRATEGY: user_input[CONF_STRATEGY],
-                        CONF_COOLDOWN: int(user_input[CONF_COOLDOWN]),
-                        CONF_MAX_ATTEMPTS: int(user_input[CONF_MAX_ATTEMPTS]),
-                        CONF_TIMEOUT: int(user_input[CONF_TIMEOUT]),
-                    }
-                )
+                self._draft.update(_policy_from_input(user_input))
                 return await self.async_step_limits()
 
         return self.async_show_form(
@@ -307,10 +354,7 @@ class AIPoolOptionsFlow(OptionsFlow):
             else:
                 self._draft = {
                     CONF_POOL_TYPE: current[CONF_POOL_TYPE],
-                    CONF_STRATEGY: user_input[CONF_STRATEGY],
-                    CONF_COOLDOWN: int(user_input[CONF_COOLDOWN]),
-                    CONF_MAX_ATTEMPTS: int(user_input[CONF_MAX_ATTEMPTS]),
-                    CONF_TIMEOUT: int(user_input[CONF_TIMEOUT]),
+                    **_policy_from_input(user_input),
                 }
                 return await self.async_step_limits()
 

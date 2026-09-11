@@ -48,7 +48,7 @@ Bump `version` in `custom_components/ai_pool/manifest.json` **and**
 `pyproject.toml`, then push a matching tag:
 
 ```bash
-git tag v0.7.1 && git push origin v0.7.1
+git tag v0.7.2 && git push origin v0.7.2
 ```
 
 The release workflow refuses to publish when the tag and the manifest disagree,

@@ -1,6 +1,7 @@
 """Config and options flow."""
 
 from homeassistant import config_entries
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -58,6 +59,20 @@ def _limits_input(*rows: tuple[int, int, int]) -> dict:
         }
         for index, (daily, rpm, weight) in enumerate(rows, start=1)
     }
+
+
+async def _settle_reload(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    """Let the reload a reconfigure abort schedules finish, then unload it.
+
+    ``async_update_reload_and_abort`` reloads the entry in the background. The
+    test used to end while that setup was still running, and the pool's
+    midnight tracker or the store's delayed write outlived it as a lingering
+    timer — a CI failure that came and went with scheduling.
+    """
+    await hass.async_block_till_done()
+    if entry.state is ConfigEntryState.LOADED:
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
 
 
 async def _start_members_step(hass: HomeAssistant, name: str, pool_type: str) -> dict:
@@ -616,6 +631,7 @@ async def test_reconfigure_flow_updates_members_without_changing_pool_type(
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
+    await _settle_reload(hass, entry)
     assert entry.data[CONF_POOL_TYPE] == "ai_task"
     assert entry.data[CONF_STRATEGY] == STRATEGY_LEAST_USED
     assert entry.data[CONF_COOLDOWN] == 60
@@ -826,6 +842,7 @@ async def test_reconfigure_flow_keeps_an_stt_buffer_as_the_default(
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
+    await _settle_reload(hass, entry)
     assert entry.data[CONF_STT_BUFFER_LIMIT] == 16 * 1024 * 1024
 
 

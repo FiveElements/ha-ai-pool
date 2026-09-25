@@ -3,8 +3,11 @@
 Route AI calls across several providers from a single entity, with rotation to
 spread daily quotas and automatic failover when a provider refuses.
 
-[![CI](https://github.com/FiveElements/ha-ai-pool/actions/workflows/ci.yml/badge.svg)](https://github.com/FiveElements/ha-ai-pool/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/github/v/release/FiveElements/ha-ai-pool?label=version)](https://github.com/FiveElements/ha-ai-pool/releases/latest)
+[![Home Assistant](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FFiveElements%2Fha-ai-pool%2Fmain%2Fhacs.json&query=%24.homeassistant&prefix=%E2%89%A5%20&label=Home%20Assistant&logo=homeassistant&color=41BDF5)](https://www.home-assistant.io/)
 [![Validate](https://github.com/FiveElements/ha-ai-pool/actions/workflows/validate.yml/badge.svg)](https://github.com/FiveElements/ha-ai-pool/actions/workflows/validate.yml)
+[![CodeQL](https://github.com/FiveElements/ha-ai-pool/actions/workflows/codeql.yml/badge.svg)](https://github.com/FiveElements/ha-ai-pool/actions/workflows/codeql.yml)
+[![CI](https://github.com/FiveElements/ha-ai-pool/actions/workflows/ci.yml/badge.svg)](https://github.com/FiveElements/ha-ai-pool/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-Material_for_MkDocs-526CFE?logo=materialformkdocs)](https://fiveelements.github.io/ha-ai-pool/)
 
 A pool publishes **one** entity in the domain it fronts. Your automations call

@@ -44,6 +44,7 @@ site, published from `docs/` on every push to `main`:
 | [Configuration](https://fiveelements.github.io/ha-ai-pool/configuration/) | Strategies and failure handling |
 | [Routing](https://fiveelements.github.io/ha-ai-pool/routing/) | Quotas, 503 vs 429, cooldowns, accounts |
 | [Observability](https://fiveelements.github.io/ha-ai-pool/observability/) | Sensors, events, `ai_pool.reset_member` |
+| [Examples](https://fiveelements.github.io/ha-ai-pool/examples/) | Complete automations and a blueprint |
 | [Troubleshooting](https://fiveelements.github.io/ha-ai-pool/troubleshooting/) | Symptoms, causes, fixes |
 | [Platforms](https://fiveelements.github.io/ha-ai-pool/platforms/) | Notes per `ai_task` / conversation / TTS / STT |
 | [Architecture](https://fiveelements.github.io/ha-ai-pool/architecture/) | Modules, request path, invariants |
@@ -104,9 +105,9 @@ uses the same fields, except **pool type**, which is fixed at creation.
 
 | Parameter | Step | Meaning |
 | --------- | ---- | ------- |
-| Name | 1 | Title of the pool entity and its device. |
+| Name | 1 | Name of the pool's device, which the pool entity is named after. |
 | Pool type | 1 | Domain the pool publishes in (`ai_task`, `conversation`, `tts`, `stt`). |
-| Members | 2 | Entities of that domain, in preference order. |
+| Members | 2 | Entities of that domain, in preference order. At most 12. |
 | Strategy | 2 | How the next healthy member is chosen. |
 | Cooldown | 2 | Sit-out after a capacity refusal (seconds). Consecutive refusals double it. |
 | Max attempts | 2 | Members tried per request before giving up. |
@@ -130,7 +131,8 @@ Everything is configured in the UI, in three steps:
    you do not know the limit.
 
 Members are always picked from the pool's own domain, and pool entities are
-excluded from the picker so a pool can never contain itself.
+excluded from the picker so a pool can never contain itself. A pool takes at
+most 12 members, one allowances section each.
 
 ### Strategies
 
@@ -266,6 +268,18 @@ polling anything:
 Both also carry `entry_id`, `pool` and `pool_type`, so one automation can watch
 every pool and branch on the payload. A working pool fires nothing.
 
+The pool **entity** goes `unavailable` only when no member could answer at
+all: every member is missing, `unavailable`, or disabled by a bad API key.
+Exhausted, cooling and throttled members keep it available, because they are
+still tried as last resort. The change is logged once each way, and the entity
+follows its members' states without waiting for a call.
+
+The [blueprint](blueprints/automation/ai_pool/notify_on_exhausted.yaml) runs
+your actions (a notification, say) on `ai_pool_exhausted` for one pool; the
+[examples](https://fiveelements.github.io/ha-ai-pool/examples/) page has it
+with complete automations for the problem sensor, failovers and
+`ai_pool.reset_member`.
+
 ### Giving up on a member
 
 Each attempt has a deadline, **120 seconds** by default, configurable per pool
@@ -341,7 +355,8 @@ wiki page. The short list:
 
 | Symptom | First check |
 | ------- | ----------- |
-| Announcement never plays, pool stays available | Problem sensor statuses, then `ai_pool_exhausted` |
+| Announcement never plays | Problem sensor statuses, then `ai_pool_exhausted` |
+| Pool entity `unavailable` | Every member is missing, `unavailable` or disabled by a bad key |
 | Repair about a shared model | Same **account** (config entry) twice; two keys on one model are fine |
 | One 503 skips the other Flash member | They share a config entry; split API keys if you meant two accounts |
 | High fallback rate | First member's `failures_<kind>` |
@@ -364,7 +379,10 @@ by a bad API key.
   failure, otherwise the pool would return "sorry" from the first broken member
   and never reach a working one. Languages are advertised as match-all.
 - **`tts`** — languages and options are the *union* across members; a member
-  that cannot handle a request raises and the next one is tried.
+  that cannot handle a request raises and the next one is tried. The entity is
+  named *Text-to-speech* under the pool's device (so `tts.<pool>_text_to_speech`
+  for a new pool), because the tts manager refuses an engine without a name of
+  its own; the other pool types take the pool's name.
 - **`stt`** — audio is buffered so a second member can be given the same
   recording. The buffer defaults to 8 MB and is set in the members step of
   the UI. Audio *format* capabilities are the *intersection* across members,
@@ -413,22 +431,17 @@ The manifest declares **platinum**. Silver is held by `--cov-fail-under=95`
 in CI. A listing in the Home Assistant brands repository can follow the
 in-repo `icon.png`.
 
-Rules this integration keeps as exemptions:
-
-- **`has-entity-name`** — the pool entity is named explicitly. `Entity.name`
-  returns `_attr_name` verbatim, and the device name is composed in later and
-  only for the friendly name; the tts manager reads `entity.name` directly and
-  refuses an engine whose name is not set. The alternative that satisfies the
-  rule would name the entity twice over, since the device *is* the pool and
-  carries one primary entity.
-- **`entity-unavailable`** — pool entities stay available and report trouble
-  through a problem sensor and events instead. A pool with no healthy member
-  can still be worth calling: a declared limit is an estimate, and an
-  announcement that fails loudly beats one that never runs.
+Every entity uses `has_entity_name`. The pool entity takes its device's name
+(`name = None`), except on `tts`, where it has a translated name because the
+tts manager refuses an engine whose `entity.name` is None. The pool entity is
+`unavailable` only when no member could answer at all; exhausted or cooling
+members keep it available, since they are still tried.
 
 `reauthentication-flow`, `test-before-configure` and `test-before-setup` do not
 apply — a pool holds no credentials and opens no connection; the member
-integrations own both.
+integrations own both. Discovery, supported-device lists and stale devices do
+not apply either: a pool is one service device, created and removed with its
+entry.
 
 ### Supported Home Assistant versions
 

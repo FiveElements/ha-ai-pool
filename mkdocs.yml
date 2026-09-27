@@ -66,6 +66,7 @@ nav:
   - Configuration: configuration.md
   - Routing: routing.md
   - Observability: observability.md
+  - Examples: examples.md
   - Troubleshooting: troubleshooting.md
   - Platforms: platforms.md
   - Architecture: architecture.md

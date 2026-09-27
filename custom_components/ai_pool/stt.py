@@ -39,6 +39,8 @@ class AIPoolSTTEntity(AIPoolEntity, stt.SpeechToTextEntity):
     one has already consumed.
     """
 
+    _attr_name = None
+
     def _member_entities(self) -> list[stt.SpeechToTextEntity]:
         """Resolve configured members to live stt entities."""
         found: list[stt.SpeechToTextEntity] = []

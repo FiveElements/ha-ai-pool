@@ -22,10 +22,10 @@ from homeassistant.components.binary_sensor import (
 )
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import DOMAIN, STATUS_HEALTHY
+from .const import STATUS_HEALTHY
+from .entity import pool_device_info
 from .pool import AIPool, AIPoolConfigEntry
 
 PARALLEL_UPDATES = 0
@@ -63,11 +63,7 @@ class AIPoolNoHealthyMemberSensor(BinarySensorEntity):
         self._pool = pool
         self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_no_healthy_member"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name=entry.title,
-            entry_type=DeviceEntryType.SERVICE,
-        )
+        self._attr_device_info = pool_device_info(pool, entry)
 
     async def async_added_to_hass(self) -> None:
         """Also refresh immediately when the pool records a failure."""

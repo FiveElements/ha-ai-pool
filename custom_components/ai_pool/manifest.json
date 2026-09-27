@@ -6,7 +6,7 @@
   "config_flow": true,
   "documentation": "https://github.com/FiveElements/ha-ai-pool",
   "integration_type": "service",
-  "iot_class": "local_push",
+  "iot_class": "calculated",
   "issue_tracker": "https://github.com/FiveElements/ha-ai-pool/issues",
   "quality_scale": "platinum",
   "requirements": [],

@@ -1,0 +1,44 @@
+blueprint:
+  name: AI Pool - act when a pool could not serve
+  description: >-
+    Runs your actions whenever the chosen AI Pool fires `ai_pool_exhausted`,
+    that is when every member it tried refused or failed, or when it had no
+    usable member at all. Without this, a failed announcement or answer leaves
+    no trace outside the automation trace.
+
+    The event is available to your actions as `trigger.event.data`, with
+    `pool`, `pool_type`, `attempts`, `members` and `description`.
+  domain: automation
+  author: jmorille
+  homeassistant:
+    min_version: 2026.9.0
+  source_url: https://github.com/FiveElements/ha-ai-pool/blob/main/blueprints/automation/ai_pool/notify_on_exhausted.yaml
+  input:
+    pool:
+      name: Pool
+      description: The AI Pool to watch.
+      selector:
+        config_entry:
+          integration: ai_pool
+    actions:
+      name: Actions
+      description: >-
+        What to do, for example a notification. `trigger.event.data.pool` is
+        the pool's title and `trigger.event.data.attempts` how many members
+        were tried.
+      selector:
+        action: {}
+
+# A pool that keeps failing fires once per call; queued keeps each one, and a
+# burst beyond ten is dropped rather than piling up notifications.
+mode: queued
+max: 10
+max_exceeded: silent
+
+triggers:
+  - trigger: event
+    event_type: ai_pool_exhausted
+    event_data:
+      entry_id: !input pool
+
+actions: !input actions

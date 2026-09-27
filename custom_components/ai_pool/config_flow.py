@@ -37,6 +37,7 @@ from .const import (
     DEFAULT_TIMEOUT,
     DEFAULT_WEIGHT,
     DOMAIN,
+    MAX_MEMBERS,
     POOL_TYPE_STT,
     POOL_TYPES,
     STRATEGIES,
@@ -385,6 +386,8 @@ class AIPoolConfigFlow(ConfigFlow, domain=DOMAIN):
             self._member_ids = list(user_input[CONF_MEMBERS])
             if not self._member_ids:
                 errors[CONF_MEMBERS] = "no_members"
+            elif len(self._member_ids) > MAX_MEMBERS:
+                errors[CONF_MEMBERS] = "too_many_members"
             else:
                 self._draft.update(_policy_from_input(user_input))
                 return await self.async_step_limits()
@@ -395,6 +398,7 @@ class AIPoolConfigFlow(ConfigFlow, domain=DOMAIN):
                 self.hass, self._draft[CONF_POOL_TYPE], self._draft
             ),
             errors=errors,
+            description_placeholders={"max_members": str(MAX_MEMBERS)},
         )
 
     async def async_step_limits(
@@ -486,6 +490,8 @@ class AIPoolOptionsFlow(OptionsFlow):
             self._member_ids = list(user_input[CONF_MEMBERS])
             if not self._member_ids:
                 errors[CONF_MEMBERS] = "no_members"
+            elif len(self._member_ids) > MAX_MEMBERS:
+                errors[CONF_MEMBERS] = "too_many_members"
             else:
                 self._draft = {
                     CONF_POOL_TYPE: current[CONF_POOL_TYPE],
@@ -501,6 +507,7 @@ class AIPoolOptionsFlow(OptionsFlow):
             step_id="members",
             data_schema=_members_schema(self.hass, current[CONF_POOL_TYPE], defaults),
             errors=errors,
+            description_placeholders={"max_members": str(MAX_MEMBERS)},
         )
 
     async def async_step_limits(

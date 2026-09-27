@@ -119,10 +119,13 @@ Latency sensors exist in the entity registry but start **disabled**: one
 measurement per member on every success is too noisy for the default
 dashboard. Calls, fallback rate and the problem sensor stay on.
 
-The pool entity itself stays **available** even when no member can serve.
-Trouble is the problem sensor and the `ai_pool_failover` /
-`ai_pool_exhausted` events, not `unavailable` — a call must still be able to
-fail loudly.
+The pool entity goes **unavailable** only when no member could answer at
+all: every member is missing, `unavailable`, or disabled by a bad API key. It
+follows its members' states directly, and logs the change once each way.
+Exhausted, cooling and throttled members keep it available, because they are
+still tried as last resort - a call must still be able to fail loudly.
+Trouble short of that is the problem sensor and the `ai_pool_failover` /
+`ai_pool_exhausted` events.
 
 ## Persistence
 

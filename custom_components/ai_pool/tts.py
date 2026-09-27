@@ -24,7 +24,13 @@ async def async_setup_entry(
 
 
 class AIPoolTTSEntity(AIPoolEntity, tts.TextToSpeechEntity):
-    """A tts entity that delegates synthesis to pool members."""
+    """A tts entity that delegates synthesis to pool members.
+
+    Named by translation key rather than ``name = None`` like the other pool
+    entities: the tts manager refuses an engine whose ``entity.name`` is None.
+    """
+
+    _attr_translation_key = "pool"
 
     def _member_entities(self) -> list[tts.TextToSpeechEntity]:
         """Resolve configured members to live tts entities."""

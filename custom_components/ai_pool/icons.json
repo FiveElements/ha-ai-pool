@@ -11,5 +11,10 @@
         "default": "mdi:call-split"
       }
     }
+  },
+  "services": {
+    "reset_member": {
+      "service": "mdi:restore"
+    }
   }
 }

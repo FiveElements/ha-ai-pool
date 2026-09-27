@@ -192,9 +192,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: AIPoolConfigEntry) -> bo
 
 async def async_unload_entry(hass: HomeAssistant, entry: AIPoolConfigEntry) -> bool:
     """Unload a config entry."""
+    if not await hass.config_entries.async_unload_platforms(entry, _platforms(entry)):
+        return False
     if isinstance(pool := getattr(entry, "runtime_data", None), AIPool):
         pool.async_clear_issues()
-    return await hass.config_entries.async_unload_platforms(entry, _platforms(entry))
+        # Request-path writes are delayed to coalesce bursts. A reload builds a
+        # fresh store that reads the file back, so the last few seconds of
+        # counters used to vanish with the old store's pending write.
+        await pool.store.async_save()
+    return True
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: AIPoolConfigEntry) -> None:

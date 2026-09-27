@@ -37,6 +37,10 @@ attribute. It is polled rather than event-driven,
 because a cooldown expiring or a member going unavailable can happen without
 the pool being involved.
 
+The pool **entity** itself goes `unavailable` only when no member could
+answer at all (every member missing, `unavailable` or disabled). Exhausted,
+cooling and throttled members keep it available.
+
 Two **events** on the Home Assistant bus:
 
 | Event | Fired when | Payload |
@@ -45,6 +49,9 @@ Two **events** on the Home Assistant bus:
 | `ai_pool_exhausted` | every attempted member failed | `attempts`, `members`, `description` |
 
 Both also carry `entry_id`, `pool` and `pool_type`. A working pool fires nothing.
+
+The [examples](examples.md) page has a blueprint for `ai_pool_exhausted` and
+complete automations for these events and the problem sensor.
 
 ## Reset a member
 

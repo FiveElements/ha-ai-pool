@@ -98,7 +98,7 @@ do when it fails* lives in the pool. Adding behaviour to routing means touching
 | `views.py` | `MemberView` — the frozen read model every sensor, diagnostic and test consumes. |
 | `models.py` | Heuristic model *and* provider `config_entry_id` behind a member (subentry first). `shared_account_models()` is the duplicate predicate. |
 | `config_flow.py` | Create + options. Pool type is chosen once. STT buffer is shown in MB, stored in bytes. |
-| `entity.py` | Shared identity for the four pool entities. Names the entity explicitly (see invariants). |
+| `entity.py` | Shared identity, `pool_device_info()` and availability for the four pool entities (see invariants). |
 | `__init__.py` | Loads one of the four platforms plus sensors; `ai_pool.reset_member`; prunes orphan member sensors. |
 | `ai_task.py` / `conversation.py` / `tts.py` / `stt.py` | Thin adapters: build `run`, call `async_execute`, translate the result. One is loaded per pool, chosen by `POOL_PLATFORM`. |
 | `sensor.py` / `binary_sensor.py` | Diagnostics only (calls + latency per member, fallback rate, no-healthy-member problem sensor). |
@@ -153,18 +153,28 @@ These are deliberate and load-bearing; several have tests pinning them.
   asks for every member; the repair path and the capacity skip must not use that cache.
 - The pool excludes its own entities from member pickers (`_own_entities`), or a pool
   could contain itself.
-- **The pool entity stays available** when no member can serve. Trouble is the problem
-  sensor and the events, not `unavailable` — a call must still be able to fail loudly.
-  Do not flip `entity-unavailable` to `done` by hiding the pool. The problem sensor
-  means "no healthy (preferred) member", not "cannot serve": last-resort members are
-  still tried.
+- **The pool entity is unavailable only when no member could answer at all**
+  (`AIPool.can_serve()`): every member missing, `unavailable` or `disabled`.
+  Exhausted, cooling and throttled members keep it available — they are still tried
+  as last resort, and a call that fails loudly beats one that never runs. Do not
+  widen `can_serve()` to "no healthy member": that is the problem sensor's job. The
+  entity follows member state changes itself and logs once per transition
+  (`log-when-unavailable`).
 - **An empty queue still fires `ai_pool_exhausted`.** A pool with no usable member
   used to raise without the event automations watch.
-- **The pool entity is named with `_attr_name = entry.title`**, not `has_entity_name`.
-  The TTS manager reads `entity.name` and refuses an engine whose name is unset;
-  `has_entity_name` with `name=None` would do that, and a translation key would
-  double-name the device's only primary entity. Diagnostic sensors *do* use
-  `has_entity_name`.
+- **Every entity uses `has_entity_name`.** The ai_task, conversation and stt pool
+  entities set `_attr_name = None` (friendly name = device name = entry title). The
+  tts pool entity uses `_attr_translation_key = "pool"` instead, because the TTS
+  manager refuses an engine whose `entity.name` is None. Do not set `_attr_name` on
+  `AIPoolEntity`: `Entity.name` returns `_attr_name` whenever it exists, even as None,
+  which shadows the tts translation key. New tts pools are therefore
+  `tts.<title>_text_to_speech`.
+- **A pool takes at most `MAX_MEMBERS` (12) members.** Allowances sections are
+  labelled from translations (`member_1`..`member_12`), which cannot be generated;
+  raising the cap means adding sections to both translation files.
+- **Unload writes the store before returning.** Request-path saves are delayed
+  (`SAVE_DELAY`); a reload builds a fresh store that reads the file, so the pending
+  write used to be lost.
 - **STT buffer: megabytes in the form, bytes in storage.** `_stt_buffer_mb` /
   `_policy_from_input` in `config_flow.py` are the conversion. The clip comparison
   measures bytes and **keeps the prefix** that fits. The field is only shown for `stt`
@@ -175,10 +185,16 @@ These are deliberate and load-bearing; several have tests pinning them.
 ## Quality scale
 
 `custom_components/ai_pool/quality_scale.yaml` is the checklist. Bronze, Silver,
-Gold and Platinum rules are `done` or `exempt`. Several exemptions are
-product decisions, not leftovers — `has-entity-name`, `entity-unavailable`,
-`log-when-unavailable`, `reauthentication-flow`, `test-before-configure`,
-`test-before-setup`. Change the code *or* the comment, not the status alone.
+Gold and Platinum rules are `done` or `exempt`. The remaining exemptions follow
+from the pool holding no credentials and no connection (`reauthentication-flow`,
+`test-before-configure`, `test-before-setup`, `async-dependency`,
+`inject-websession`) or being one service device (discovery, `dynamic-devices`,
+`stale-devices`, `docs-supported-devices`). Official rules such as
+`has-entity-name` admit no exceptions: do not reintroduce one. Change the code
+*or* the comment, not the status alone.
+
+`docs-examples` is held by `docs/examples.md` and the blueprint in
+`blueprints/automation/ai_pool/`.
 
 `icon.png` at the repo root is the HACS brand. A listing in `home-assistant/brands`
 is optional follow-up, not a merge blocker.

@@ -35,7 +35,10 @@ from custom_components.ai_pool.const import (
     STATUS_EXHAUSTED,
     STRATEGY_PRIORITY,
 )
-from custom_components.ai_pool.diagnostics import async_get_config_entry_diagnostics
+from custom_components.ai_pool.diagnostics import (
+    _redact_error,
+    async_get_config_entry_diagnostics,
+)
 
 QUOTA = '{"error": {"code": 429, "status": "RESOURCE_EXHAUSTED"}}'
 CAPACITY = '{"error": {"code": 503, "status": "UNAVAILABLE"}}'
@@ -717,3 +720,32 @@ async def test_diagnostics_report_policy_and_members(hass: HomeAssistant) -> Non
     members = {row["entity_id"]: row for row in data["members"]}
     assert members["ai_task.member_a"]["daily_limit"] == 25
     assert members["ai_task.member_a"]["remaining"] == 25
+
+
+async def test_diagnostics_keep_the_failure_kind_but_not_the_provider_text(
+    hass: HomeAssistant,
+) -> None:
+    """Some providers echo the request URL, API key included, in their error."""
+    leaky = CAPACITY + " https://generativelanguage.googleapis.com/?key=AIzaSECRET"
+    assert await async_setup_component(hass, "ai_task", {})
+    await publish_members(
+        hass,
+        "ai_task",
+        [FakeTaskMember(A, error=leaky), FakeTaskMember(B, data={"ok": True})],
+    )
+    entry = await setup_pool(hass, "ai_task")
+    await ai_task.async_generate_data(
+        hass, task_name="t", entity_id="ai_task.test_pool", instructions="hi"
+    )
+
+    data = await async_get_config_entry_diagnostics(hass, entry)
+
+    members = {row["entity_id"]: row for row in data["members"]}
+    assert members["ai_task.member_a"]["last_error"] == "capacity: **REDACTED**"
+    assert members["ai_task.member_b"]["last_error"] is None
+    assert "AIzaSECRET" not in str(data)
+
+
+def test_an_error_without_a_kind_is_redacted_whole() -> None:
+    """Nothing to keep when the stored text was never classified."""
+    assert _redact_error("provider said something") == "**REDACTED**"

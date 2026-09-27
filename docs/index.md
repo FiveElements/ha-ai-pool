@@ -37,7 +37,7 @@ retried in five minutes; one that is out of allowance should sit out until
 tomorrow; one with a bad API key should never be called again. These are
 different situations and the pool treats them differently.
 
-## The honest limitation
+## Known limitations
 
 !!! warning "No provider reports remaining quota"
 
@@ -54,3 +54,17 @@ So the two halves of this integration have very different reliability:
 That asymmetry is deliberate: declared limits only influence *ordering*, and a
 member believed to be exhausted is still tried as a last resort. A wrong guess
 about a quota should never turn into a silent no-op.
+
+### Other limitations
+
+- **Token counts are unavailable.** Home Assistant never reports them back, so
+  the per-minute and daily input counters are in characters, not tokens.
+- **`ai_task` attachments are not supported.** They reach the pool already
+  resolved, and there is no supported way to hand them to another entity.
+- **An oversized STT recording gets no failover.** Audio beyond the retry
+  buffer is clipped and sent to one member only; the transcript may be
+  incomplete.
+- **At most 12 members per pool**, one allowances section each.
+- **A pool can show `unavailable` for a few seconds at startup**, until its
+  member integrations have loaded.
+- **Pool type is fixed at creation**, because it decides which platform loads.

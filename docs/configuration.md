@@ -12,7 +12,8 @@ Everything is configured in the UI, in three steps:
    you do not know the limit.
 
 Members are always picked from the pool's own domain, and pool entities are
-excluded from the picker so a pool can never contain itself.
+excluded from the picker so a pool can never contain itself. A pool takes at
+most 12 members, one allowances section each.
 
 An existing pool is edited from **Configure** (options) or **Reconfigure** on
 the config entry. Configure opens a menu: members and policy, or daily

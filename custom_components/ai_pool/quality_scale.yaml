@@ -4,7 +4,7 @@ rules:
   appropriate-polling: done
   brands:
     status: done
-    comment: HACS branding is shipped as icon.png at the repository root. A listing in home-assistant/brands is optional follow-up, not claimed as shipped.
+    comment: Brand images ship with the integration in custom_components/ai_pool/brand/ (icon.png, icon@2x.png), and icon.png at the repository root is the HACS listing. A home-assistant/brands entry is optional follow-up, not claimed as shipped.
   common-modules: done
   config-flow-test-coverage: done
   config-flow: done
@@ -23,16 +23,14 @@ rules:
     comment: The integration does not provide triggers. Failover is observed through events documented in the README.
   entity-event-setup: done
   entity-unique-id: done
-  has-entity-name:
-    status: exempt
-    comment: Diagnostic sensors use has_entity_name. The pool entity is named explicitly because the TTS manager reads entity.name and refuses an engine whose name is unset; has_entity_name with name=None would double-name the device's only primary entity.
+  has-entity-name: done
   runtime-data: done
   test-before-configure:
     status: exempt
-    comment: The pool holds no credentials and opens no connection; member integrations own both.
+    comment: The pool holds no credentials and opens no connection, so there is nothing to test against. Its only input is a set of entities, which the config flow validates by construction - the EntitySelector is filtered to the pool's domain and excludes the integration's own pool entities - and a pool with no members is refused.
   test-before-setup:
     status: exempt
-    comment: The pool holds no credentials and opens no connection; setup cannot fail for a remote service that is not ours.
+    comment: The pool holds no credentials and opens no connection, so there is no remote service whose reachability setup could test. Members belong to other integrations and may load after the pool; a missing or unavailable member is a routing status that makes the pool entity unavailable until one returns (entity-unavailable), not a reason to fail setup and retry.
   unique-config-entry: done
 
   # Silver
@@ -40,13 +38,9 @@ rules:
   config-entry-unloading: done
   docs-configuration-parameters: done
   docs-installation-parameters: done
-  entity-unavailable:
-    status: exempt
-    comment: Pool entities stay available so a call can still fail loudly. A declared limit is an estimate; trouble is reported by the problem sensor and events instead of hiding the entity.
+  entity-unavailable: done
   integration-owner: done
-  log-when-unavailable:
-    status: exempt
-    comment: The pool is not a remote service. Member unavailability is a routing status, not a connection drop, and is surfaced on the problem sensor.
+  log-when-unavailable: done
   parallel-updates: done
   reauthentication-flow:
     status: exempt
@@ -82,7 +76,9 @@ rules:
   icon-translations: done
   reconfiguration-flow: done
   repair-issues: done
-  stale-devices: done
+  stale-devices:
+    status: exempt
+    comment: Each pool has exactly one service device, created and removed with its config entry. Entities of members that left the pool are pruned on setup.
 
   # Platinum
   async-dependency:

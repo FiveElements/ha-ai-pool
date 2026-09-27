@@ -43,6 +43,9 @@ CAPACITY = '{"error": {"code": 503, "status": "UNAVAILABLE"}}'
 TITLE = "Test pool"
 A = "member_a"
 B = "member_b"
+# The tts pool is named by translation key, so its object id carries the
+# name after the title.
+TTS_POOL = "tts.test_pool_text_to_speech"
 
 
 @pytest.fixture(autouse=True)
@@ -356,7 +359,7 @@ async def test_tts_pool_returns_audio_from_the_next_member(
     media_source_id = tts.generate_media_source_id(
         hass,
         "bonjour",
-        engine="tts.test_pool",
+        engine=TTS_POOL,
         language="en",
         options=None,
         cache=False,
@@ -386,11 +389,16 @@ async def test_tts_pool_advertises_the_union_of_member_languages(
     )
     await setup_pool(hass, "tts")
 
-    pool_entity = hass.data[tts.DATA_COMPONENT].get_entity("tts.test_pool")
+    pool_entity = hass.data[tts.DATA_COMPONENT].get_entity(TTS_POOL)
     assert pool_entity is not None
     assert sorted(pool_entity.supported_languages) == ["de", "en", "fr"]
-    # The tts manager refuses an engine whose name is None.
-    assert pool_entity.name == TITLE
+    # The tts manager refuses an engine whose name is None, so the tts pool is
+    # named by translation key while its friendly name still leads with the
+    # pool's title.
+    assert pool_entity.name == "Text-to-speech"
+    state = hass.states.get(TTS_POOL)
+    assert state is not None
+    assert state.attributes["friendly_name"] == f"{TITLE} Text-to-speech"
 
 
 async def test_tts_pool_advertises_the_union_of_member_options(
@@ -408,7 +416,7 @@ async def test_tts_pool_advertises_the_union_of_member_options(
     )
     await setup_pool(hass, "tts")
 
-    pool_entity = hass.data[tts.DATA_COMPONENT].get_entity("tts.test_pool")
+    pool_entity = hass.data[tts.DATA_COMPONENT].get_entity(TTS_POOL)
     assert pool_entity is not None
     assert pool_entity.supported_options == ["voice", "speed"]
 
@@ -420,7 +428,7 @@ async def test_tts_pool_falls_back_when_the_tts_component_is_missing(
     assert await async_setup_component(hass, "tts", {})
     await publish_members(hass, "tts", [FakeTTSMember(A, audio=b"a")])
     await setup_pool(hass, "tts")
-    pool_entity = hass.data[tts.DATA_COMPONENT].get_entity("tts.test_pool")
+    pool_entity = hass.data[tts.DATA_COMPONENT].get_entity(TTS_POOL)
     assert pool_entity is not None
     saved = hass.data[tts.DATA_COMPONENT]
     hass.data.pop(tts.DATA_COMPONENT)

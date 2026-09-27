@@ -197,7 +197,8 @@
       }
     },
     "error": {
-      "no_members": "Choisir au moins un membre."
+      "no_members": "Choisir au moins un membre.",
+      "too_many_members": "Un pool accepte au plus {max_members} membres."
     },
     "abort": {
       "already_configured": "Un pool de ce type couvre déjà exactement ces membres. Deux pools sur les mêmes membres tiennent chacun leurs compteurs et croient chacun disposer de tout le quota.",
@@ -399,7 +400,8 @@
     },
     "error": {
       "no_members": "Choisir au moins un membre.",
-      "duplicate_members": "Un autre pool couvre déjà exactement ces membres, et deux pools sur les mêmes membres dépenseraient chacun le quota comme s'ils étaient seuls."
+      "duplicate_members": "Un autre pool couvre déjà exactement ces membres, et deux pools sur les mêmes membres dépenseraient chacun le quota comme s'ils étaient seuls.",
+      "too_many_members": "Un pool accepte au plus {max_members} membres."
     }
   },
   "selector": {
@@ -420,6 +422,11 @@
     }
   },
   "entity": {
+    "tts": {
+      "pool": {
+        "name": "Synthèse vocale"
+      }
+    },
     "sensor": {
       "member_calls": {
         "name": "Appels {member}"
@@ -474,10 +481,10 @@
       "message": "{member} n'est pas membre de {pool}."
     },
     "no_usable_member": {
-      "message": "{pool} n'a aucun membre capable de servir cette demande ({description})."
+      "message": "{pool} n'a aucun membre capable de servir cette demande."
     },
     "all_members_failed": {
-      "message": "{pool} n'a pas pu servir cette demande ({description}) après {attempts} tentative(s)."
+      "message": "{pool} n'a pas pu servir cette demande après {attempts} tentative(s)."
     },
     "conversation_member_error": {
       "message": "Le membre conversation {member} a renvoyé une réponse d'erreur : {speech}"

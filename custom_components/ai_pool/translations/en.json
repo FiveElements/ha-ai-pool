@@ -197,7 +197,8 @@
       }
     },
     "error": {
-      "no_members": "Pick at least one member."
+      "no_members": "Pick at least one member.",
+      "too_many_members": "A pool takes at most {max_members} members."
     },
     "abort": {
       "already_configured": "A pool of that type already fronts exactly these members. Two pools over the same members each keep their own counters and each believe they hold the whole allowance.",
@@ -399,7 +400,8 @@
     },
     "error": {
       "no_members": "Pick at least one member.",
-      "duplicate_members": "Another pool already fronts exactly these members, and two pools over the same members would each spend the allowance as if they were alone."
+      "duplicate_members": "Another pool already fronts exactly these members, and two pools over the same members would each spend the allowance as if they were alone.",
+      "too_many_members": "A pool takes at most {max_members} members."
     }
   },
   "selector": {
@@ -420,6 +422,11 @@
     }
   },
   "entity": {
+    "tts": {
+      "pool": {
+        "name": "Text-to-speech"
+      }
+    },
     "sensor": {
       "member_calls": {
         "name": "{member} calls"
@@ -474,10 +481,10 @@
       "message": "{member} is not a member of {pool}."
     },
     "no_usable_member": {
-      "message": "{pool} has no member that can serve this {description}."
+      "message": "{pool} has no member that can serve this request."
     },
     "all_members_failed": {
-      "message": "{pool} could not serve this {description} after {attempts} attempt(s)."
+      "message": "{pool} could not serve this request after {attempts} attempt(s)."
     },
     "conversation_member_error": {
       "message": "Conversation member {member} returned an error response: {speech}"

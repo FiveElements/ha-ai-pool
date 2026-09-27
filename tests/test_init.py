@@ -1,5 +1,7 @@
 """Integration setup and teardown."""
 
+from unittest.mock import patch
+
 import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
@@ -8,7 +10,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.ai_pool import async_migrate_entry
+from custom_components.ai_pool import async_migrate_entry, async_unload_entry
 from custom_components.ai_pool.binary_sensor import SCAN_INTERVAL
 from custom_components.ai_pool.config_flow import _pool_key
 from custom_components.ai_pool.const import (
@@ -328,3 +330,91 @@ async def test_a_schema_from_the_future_is_not_guessed_at(
     assert not await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     assert entry.state is ConfigEntryState.MIGRATION_ERROR
+
+
+def _pool_state(hass: HomeAssistant, entry: MockConfigEntry) -> str:
+    """State of the pool's own entity, found through the registry."""
+    entity_id = er.async_get(hass).async_get_entity_id(
+        "ai_task", DOMAIN, entry.entry_id
+    )
+    assert entity_id is not None
+    state = hass.states.get(entity_id)
+    assert state is not None
+    return state.state
+
+
+async def test_pool_is_unavailable_only_when_no_member_can_answer(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A dashboard showed a pool as fine while every call was bound to fail."""
+    assert await async_setup_component(hass, "ai_task", {})
+    entry = build_entry("ai_task")
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    # Neither member exists yet: nothing could serve.
+    assert _pool_state(hass, entry) == "unavailable"
+    assert "has no reachable member" in caplog.text
+
+    # One member appearing is enough, and nobody had to call the pool.
+    hass.states.async_set(f"ai_task.{A}", "2026-01-01T00:00:00+00:00")
+    await hass.async_block_till_done()
+    assert _pool_state(hass, entry) != "unavailable"
+    assert "is available again" in caplog.text
+
+    # An exhausted member is still tried as last resort, so it keeps the pool
+    # available.
+    pool = entry.runtime_data
+    pool.store.touch(f"ai_task.{A}").blocked_until_day = "2999-01-01"
+    pool._notify()
+    await hass.async_block_till_done()
+    assert _pool_state(hass, entry) != "unavailable"
+
+    # Logged once per change, not once per state write.
+    caplog.clear()
+    hass.states.async_set(f"ai_task.{A}", "unavailable")
+    await hass.async_block_till_done()
+    hass.states.async_set(f"ai_task.{A}", "unavailable", {"again": True})
+    await hass.async_block_till_done()
+    assert _pool_state(hass, entry) == "unavailable"
+    assert caplog.text.count("has no reachable member") == 1
+
+
+async def test_unloading_writes_the_counters_a_reload_would_lose(
+    hass: HomeAssistant,
+) -> None:
+    """Request-path writes are delayed; a reload used to read the file first."""
+    assert await async_setup_component(hass, "ai_task", {})
+    hass.states.async_set(f"ai_task.{A}", "2026-01-01T00:00:00+00:00")
+    entry = build_entry("ai_task")
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    async def run(member: str) -> str:
+        return "ok"
+
+    await entry.runtime_data.async_execute(run)
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.runtime_data.store.state.member(f"ai_task.{A}").calls == 1
+
+
+async def test_a_failed_unload_keeps_the_pool_and_its_repairs(
+    hass: HomeAssistant,
+) -> None:
+    """Clearing repairs before knowing the unload worked left a live pool bare."""
+    assert await async_setup_component(hass, "ai_task", {})
+    entry = build_entry("ai_task")
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    with (
+        patch.object(hass.config_entries, "async_unload_platforms", return_value=False),
+        patch.object(entry.runtime_data, "async_clear_issues") as clear,
+    ):
+        assert not await async_unload_entry(hass, entry)
+    clear.assert_not_called()

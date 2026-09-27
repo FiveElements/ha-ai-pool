@@ -29,6 +29,8 @@ async def async_setup_entry(
 class AIPoolConversationEntity(AIPoolEntity, conversation.ConversationEntity):
     """A conversation agent that delegates to pool members."""
 
+    _attr_name = None
+
     @property
     def supported_languages(self) -> list[str] | Literal["*"]:
         """Languages supported by the pool.

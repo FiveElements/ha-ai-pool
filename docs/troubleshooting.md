@@ -1,16 +1,17 @@
 # Troubleshooting
 
 Each topic is a symptom, then why it happens, then what to do. The pool
-never hides a failure by going `unavailable`: if something cannot be
-served, the call raises. The **No healthy member** problem sensor turns on
-when nobody is in the preferred group; last-resort members can still serve.
+entity goes `unavailable` only when no member could answer at all; short of
+that, if something cannot be served, the call raises. The **No healthy
+member** problem sensor turns on when nobody is in the preferred group;
+last-resort members can still serve.
 
 ## The announcement never plays / the pipeline stops
 
 ### Symptom
 
 An automation calling the pool does nothing, or Assist answers with an
-error. The pool entity itself stays available.
+error. The pool entity itself is still available.
 
 ### Description
 
@@ -34,6 +35,30 @@ and a call that fails beats one that never runs.
    - `unavailable` — the member integration is down.
 3. Check `ai_pool_failover` events for the classified `kind` and
    `message`.
+
+## The pool entity is unavailable
+
+### Symptom
+
+The pool entity shows `unavailable`, and the log has
+`Pool <name> has no reachable member and is unavailable`.
+
+### Description
+
+No member could answer at all: every member entity is missing,
+`unavailable`, or `disabled` after an authentication refusal. Exhausted,
+cooling or throttled members would keep the pool available, so this is not a
+quota problem. It is common for a few seconds at startup, while the member
+integrations load after the pool.
+
+### Resolution
+
+1. Check the member entities themselves: a missing or `unavailable` member
+   is its own integration being down or not loaded.
+2. If the problem sensor lists members as `disabled`, fix their API key and
+   call `ai_pool.reset_member` or reload the pool entry.
+3. The pool becomes available again by itself as soon as one member returns,
+   and logs `Pool <name> is available again`.
 
 ## Repair: members share a model on the same account
 

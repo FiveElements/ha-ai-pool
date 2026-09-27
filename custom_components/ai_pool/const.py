@@ -43,6 +43,10 @@ CONF_MAX_ATTEMPTS: Final = "max_attempts"
 CONF_TIMEOUT: Final = "timeout_seconds"
 CONF_STT_BUFFER_LIMIT: Final = "stt_buffer_limit"
 
+# One allowances section per member, and section labels come from translations,
+# which cannot be generated: a thirteenth member used to get an unlabelled form.
+MAX_MEMBERS: Final = 12
+
 # --- Defaults ---------------------------------------------------------------
 DEFAULT_DAILY_LIMIT: Final = 0  # 0 means "no declared limit"
 DEFAULT_RPM_LIMIT: Final = 0  # 0 means "no declared limit"

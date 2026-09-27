@@ -31,12 +31,15 @@ The manifest currently declares **platinum**. Silver needs `test-coverage`
 (≥95 %) in CI (`--cov-fail-under=95`). Platinum adds `mypy --strict` on
 `custom_components/ai_pool`.
 
-Exemptions that are product decisions:
+Every entity uses `has_entity_name`. The pool entity takes its device's name,
+except on `tts`, where a translation key names it because the tts manager
+refuses an engine whose `entity.name` is None. The pool entity is
+`unavailable` only when no member could answer at all.
 
-- **`has-entity-name`** — the pool entity is named explicitly because the TTS
-  manager reads `entity.name`.
-- **`entity-unavailable`** — pool entities stay available; trouble is the
-  problem sensor and events.
+Exemptions: `reauthentication-flow`, `test-before-configure` and
+`test-before-setup` (a pool holds no credentials and opens no connection), and
+the discovery and device rules (a pool is one service device, created and
+removed with its entry).
 
 ## Supported Home Assistant versions
 

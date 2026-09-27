@@ -386,6 +386,21 @@ class AIPool:
 
         return STATUS_HEALTHY
 
+    def can_serve(self) -> bool:
+        """Whether any member could answer a call at all.
+
+        Deliberately wider than "healthy": exhausted, cooling and throttled
+        members are still tried as last resort, and a declared limit is only an
+        estimate, so they keep the pool available. Only a pool whose every
+        member is missing, unavailable or disabled for bad credentials cannot
+        serve - showing that pool as available used to leave a dashboard green
+        while every call failed.
+        """
+        return any(
+            self.member_status(member) not in (STATUS_UNAVAILABLE, STATUS_DISABLED)
+            for member in self.members
+        )
+
     def snapshot(self) -> list[MemberView]:
         """Per-member view for sensors and diagnostics.
 
@@ -553,10 +568,9 @@ class AIPool:
             raise AllMembersFailedError(
                 translation_domain=DOMAIN,
                 translation_key="no_usable_member",
-                translation_placeholders={
-                    "pool": self.entry.title,
-                    "description": description,
-                },
+                # description is an internal token (generate_data, tts...),
+                # not a phrase: in a French message it read as raw English.
+                translation_placeholders={"pool": self.entry.title},
             )
 
         # Advanced by one, independently of the queue length. Taking it modulo
@@ -664,7 +678,6 @@ class AIPool:
             translation_key="all_members_failed",
             translation_placeholders={
                 "pool": self.entry.title,
-                "description": description,
                 "attempts": str(attempts),
             },
         ) from last_error

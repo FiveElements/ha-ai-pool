@@ -25,6 +25,7 @@ from custom_components.ai_pool.const import (
     DEFAULT_STT_BUFFER_LIMIT,
     DEFAULT_TIMEOUT,
     DOMAIN,
+    MAX_MEMBERS,
     STRATEGY_LEAST_USED,
     STRATEGY_ROUND_ROBIN,
 )
@@ -154,6 +155,30 @@ async def test_full_flow_creates_a_pool(hass: HomeAssistant) -> None:
     ]
     # The name is the entry title, not a config value.
     assert "name" not in data
+
+
+async def test_members_step_rejects_more_members_than_it_can_label(
+    hass: HomeAssistant,
+) -> None:
+    """Section labels come from translations; a thirteenth had none."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"name": "Crowded", CONF_POOL_TYPE: "tts"}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_MEMBERS: [f"tts.member_{index}" for index in range(MAX_MEMBERS + 1)],
+            CONF_STRATEGY: STRATEGY_ROUND_ROBIN,
+            CONF_COOLDOWN: 300,
+            CONF_MAX_ATTEMPTS: 3,
+        },
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {CONF_MEMBERS: "too_many_members"}
+    assert result["description_placeholders"] == {"max_members": str(MAX_MEMBERS)}
 
 
 async def test_members_step_rejects_an_empty_selection(
@@ -727,6 +752,21 @@ async def test_options_flow_recovers_from_an_empty_selection(
     )
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {CONF_MEMBERS: "no_members"}
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_MEMBERS: [
+                f"ai_task.member_{index}" for index in range(MAX_MEMBERS + 1)
+            ],
+            CONF_STRATEGY: STRATEGY_ROUND_ROBIN,
+            CONF_COOLDOWN: 300,
+            CONF_MAX_ATTEMPTS: 3,
+            CONF_TIMEOUT: DEFAULT_TIMEOUT,
+        },
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {CONF_MEMBERS: "too_many_members"}
 
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],

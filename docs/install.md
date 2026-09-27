@@ -27,9 +27,9 @@ uses the same fields, except **pool type**, which is fixed at creation.
 
 | Parameter | Step | Meaning |
 | --------- | ---- | ------- |
-| Name | 1 | Title of the pool entity and its device. |
+| Name | 1 | Name of the pool's device, which the pool entity is named after. |
 | Pool type | 1 | Domain the pool publishes in (`ai_task`, `conversation`, `tts`, `stt`). |
-| Members | 2 | Entities of that domain, in preference order. |
+| Members | 2 | Entities of that domain, in preference order. At most 12. |
 | Strategy | 2 | How the next healthy member is chosen. |
 | Cooldown | 2 | Sit-out after a capacity refusal (seconds). Consecutive refusals double it. |
 | Max attempts | 2 | Members tried per request before giving up. |

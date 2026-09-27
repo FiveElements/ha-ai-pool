@@ -19,8 +19,10 @@ working one. Languages are advertised as match-all.
 Languages and options are the **union** across members; a member that cannot
 handle a request raises and the next one is tried.
 
-The pool entity is named explicitly (`entity.name` is the pool title). The TTS
-manager refuses an engine whose name is unset.
+The pool entity is named *Text-to-speech* under the pool's device, so a new
+pool's entity id is `tts.<pool>_text_to_speech`. The other pool types take the
+device's name, but the TTS manager refuses an engine whose `entity.name` is
+None. Pools created before this change keep their entity id.
 
 ## `stt`
 

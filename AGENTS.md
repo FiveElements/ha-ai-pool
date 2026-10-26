@@ -40,6 +40,12 @@ validation, including a weekly cron. Pushes to `main` also publish the
 (`.github/workflows/docs.yml`). Pull requests build the same site with
 `mkdocs build --strict` so a broken wiki link fails CI before it is published.
 
+Dependabot PRs squash-merge themselves (`.github/workflows/dependabot-automerge.yml`)
+once every check on the head commit is green. It hangs off `workflow_run` because
+`main` has no branch protection, so native auto-merge would not wait for CI. Merges
+made with `GITHUB_TOKEN` do not trigger push workflows: such a merge publishes no
+docs and starts no CI on `main` until the next human push.
+
 ### Windows
 
 The full suite cannot run natively — `pytest-homeassistant-custom-component` imports

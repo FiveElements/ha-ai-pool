@@ -66,10 +66,11 @@ checks every run itself rather than trusting the required-check list, which name
 only the jobs that existed when protection was set.
 
 `main` is protected: no force push or deletion, changes go through a pull request
-(no approval required) and need the checks `Ruff`, `Tests (HA <floor>)`, `Fuzz`,
-`hassfest`, `HACS`, `Analyze (python)`, `Analyze (actions)` and `Build`. Admins
-bypass it, so a maintainer can still push directly. Raising the HA floor renames
-the tests check: update the required list
+(no approval required) and need the checks `Ruff`, `Tests`, `Fuzz`, `hassfest`,
+`HACS`, `Analyze (python)`, `Analyze (actions)` and `Build`. Admins bypass it, so a
+maintainer can still push directly. `Tests` is a job that only aggregates the
+matrix; require it, never a `Tests (HA …)` row, whose name changes with the floor.
+Renaming any of the other jobs means updating the required list
 (`gh api -X PUT repos/FiveElements/ha-ai-pool/branches/main/protection`) in the
 same change, or every PR waits on a check that never reports. Merges
 made with `GITHUB_TOKEN` do not trigger push workflows: such a merge publishes no

@@ -75,6 +75,20 @@ jobs:
           name: coverage
           path: coverage.xml
 
+  # The one check branch protection requires for the suite. Matrix jobs are
+  # named after their Home Assistant version, so requiring them directly meant
+  # every floor bump left PRs waiting on a check that would never report.
+  tests:
+    name: Tests
+    needs: test
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every matrix row passed
+        env:
+          RESULT: ${{ needs.test.result }}
+        run: test "$RESULT" = success
+
   fuzz:
     name: Fuzz
     runs-on: ubuntu-latest

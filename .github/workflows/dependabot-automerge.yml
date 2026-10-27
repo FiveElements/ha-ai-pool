@@ -9,9 +9,7 @@ on:
     types: [completed]
 
 permissions:
-  contents: write
-  pull-requests: write
-  checks: read
+  contents: read
 
 concurrency:
   group: dependabot-automerge-${{ github.event.workflow_run.head_sha }}
@@ -20,6 +18,10 @@ jobs:
   merge:
     name: Merge when every check is green
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: read
     # The actor, not the PR author: a human pushing onto a Dependabot branch
     # makes the next run theirs, and that change deserves a review.
     if: >-

@@ -42,7 +42,9 @@ validation, including a weekly cron. Pushes to `main` also publish the
 
 `.github/workflows/scorecard.yml` publishes the OpenSSF Scorecard the README badge
 reads; it keeps `permissions: read-all` at the top because `publish_results` refuses
-any top-level write scope. The coverage badge is static and states the
+any top-level write scope. Every other workflow is `contents: read` at the top and
+grants write scopes per job; actions are pinned by commit SHA with the version in a
+trailing comment, which Dependabot keeps updated. The coverage badge is static and states the
 `--cov-fail-under=95` floor, not a measured figure: no coverage service is wired in.
 
 Dependabot PRs squash-merge themselves (`.github/workflows/dependabot-automerge.yml`)

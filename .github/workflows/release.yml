@@ -17,17 +17,29 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Check the tag matches the advertised versions
+      # The tag is the only place a version is written. The repository keeps
+      # 0.0.0 in manifest.json and pyproject.toml, so two files can no longer
+      # disagree with each other or with the tag.
+      - name: Stamp the tag's version into the manifest
         run: |
-          tag="${GITHUB_REF_NAME#v}"
-          manifest=$(python -c "import json;print(json.load(open('custom_components/ai_pool/manifest.json'))['version'])")
-          pyproject=$(python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
-          echo "tag=$tag manifest=$manifest pyproject=$pyproject"
-          if [ "$tag" != "$manifest" ] || [ "$tag" != "$pyproject" ]; then
-            echo "::error::Tag $tag does not match manifest $manifest / pyproject $pyproject"
+          version="${GITHUB_REF_NAME#v}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME is not vX.Y.Z"
             exit 1
           fi
+          python - "$version" <<'PY'
+          import json, sys
+          from pathlib import Path
 
+          path = Path("custom_components/ai_pool/manifest.json")
+          manifest = json.loads(path.read_text())
+          manifest["version"] = sys.argv[1]
+          path.write_text(json.dumps(manifest, indent=2) + "\n")
+          PY
+          grep '"version"' custom_components/ai_pool/manifest.json
+
+      # HACS installs this zip (zip_release in hacs.json), so its manifest is
+      # the version users see.
       - name: Build the HACS zip
         run: |
           cd custom_components/ai_pool

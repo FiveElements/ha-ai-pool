@@ -4,7 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ha-ai-pool"
-version = "0.8.4"
+# The release tag is the version: the release workflow stamps it into the
+# manifest it ships. Nothing reads this one, so it is never bumped.
+version = "0.0.0"
 description = "Home Assistant integration pooling AI providers with quota-aware failover"
 readme = "README.md"
 license = { text = "MIT" }

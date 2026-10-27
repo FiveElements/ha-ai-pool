@@ -63,7 +63,15 @@ trailing comment, which Dependabot keeps updated. The coverage badge is static a
 Dependabot PRs squash-merge themselves (`.github/workflows/dependabot-automerge.yml`)
 once every check on the head commit is green. It hangs off `workflow_run` and
 checks every run itself rather than trusting the required-check list, which names
-only the jobs that existed when protection was set. Merges
+only the jobs that existed when protection was set.
+
+`main` is protected: no force push or deletion, changes go through a pull request
+(no approval required) and need the checks `Ruff`, `Tests (HA <floor>)`, `Fuzz`,
+`hassfest`, `HACS`, `Analyze (python)`, `Analyze (actions)` and `Build`. Admins
+bypass it, so a maintainer can still push directly. Raising the HA floor renames
+the tests check: update the required list
+(`gh api -X PUT repos/FiveElements/ha-ai-pool/branches/main/protection`) in the
+same change, or every PR waits on a check that never reports. Merges
 made with `GITHUB_TOKEN` do not trigger push workflows: such a merge publishes no
 docs and starts no CI on `main` until the next human push.
 

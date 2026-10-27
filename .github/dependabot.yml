@@ -15,11 +15,6 @@ updates:
     groups:
       python:
         patterns: ["*"]
-    # Each test lock is the closure of one harness, whose Home Assistant pins
-    # its dependencies exactly; bumping any of them alone cannot resolve.
-    # scripts/lock.sh regenerates them when the harness moves.
-    exclude-paths:
-      - "requirements-ci/**"
     ignore:
       # The harness pins exactly one Home Assistant version and must match the
       # oldest row of ci.yml and the floor in hacs.json. A lone bump here would

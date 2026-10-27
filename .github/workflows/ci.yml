@@ -49,15 +49,18 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.14"
-      # One hash-locked file per harness, written by scripts/lock.sh. The check
-      # fails a harness bump whose lock was not regenerated, instead of letting
-      # a component import fail somewhere in the suite.
+      # Not hash-locked, unlike lint, docs and fuzz: the lock had to carry Home
+      # Assistant's exact pins, so every CVE in a package HA pins became an
+      # alert here that no change of ours could fix.
       - name: Install
         env:
-          LOCK: requirements-ci/harness-${{ matrix.harness }}.txt
+          HARNESS: ${{ matrix.harness }}
         run: |
-          pip install --require-hashes -r "$LOCK"
-          python scripts/component_requirements.py --check
+          pip install "pytest-homeassistant-custom-component==$HARNESS"
+          pip install mypy==1.18.2
+          python scripts/component_requirements.py > component-requirements.txt
+          cat component-requirements.txt
+          pip install -r component-requirements.txt
       - name: Test
         run: |
           pytest tests \

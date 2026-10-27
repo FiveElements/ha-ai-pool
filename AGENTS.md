@@ -34,14 +34,12 @@ CI uses **Python 3.14** and pins `pytest-homeassistant-custom-component` in
 from the *installed* HA manifests — that is how the test job gets
 `ai_task`/`tts`/`stt` importable without pinning their deps twice.
 
-Every `pip install` in a workflow uses `--require-hashes` (Scorecard
-Pinned-Dependencies). The hashed `requirements-{lint,docs,fuzz}.txt` are compiled
-from their `.in`; the test job installs `requirements-ci/harness-<version>.txt`,
-one per matrix row, holding the harness, mypy and the components' requirements.
-`scripts/lock.sh [harness...]` regenerates them all in Docker; run it after editing
-an `.in`, bumping the harness or mypy, or adding a matrix row. CI's
-`component_requirements.py --check` fails a lock gone stale. Dependabot recompiles
-the root `.in` locks itself and skips `requirements-ci/`.
+Lint, docs and fuzz install with `--require-hashes` (Scorecard
+Pinned-Dependencies) from `requirements-{lint,docs,fuzz}.txt`, compiled from their
+`.in`. Dependabot recompiles them itself; `scripts/lock.sh` does it by hand, in
+Docker. The test job is deliberately **not** hash-locked: such a lock must carry
+Home Assistant's exact pins (Pillow, uv…), so each CVE in one of them raised
+Dependabot alerts here that only an HA release could fix. Do not reintroduce it.
 
 `fuzz/fuzz_classify.py` is an Atheris harness for `classify()`, run for a minute by
 the CI `Fuzz` job (and Scorecard's Fuzzing check). It loads `errors.py` by path, so
@@ -92,7 +90,9 @@ tested until this (or Ubuntu CI) has run:
 docker run --rm \
   -v "$PWD:/src" -v ha-ai-pool-pip:/root/.cache/pip -w /src \
   python:3.14-bookworm bash -lc '
-    pip install -q --require-hashes -r requirements-ci/harness-0.13.371.txt
+    pip install -q pytest-homeassistant-custom-component==0.13.371 mypy==1.18.2
+    python scripts/component_requirements.py > /tmp/reqs.txt
+    pip install -q -r /tmp/reqs.txt
     pytest tests -q --tb=short
     mypy custom_components/ai_pool
   '

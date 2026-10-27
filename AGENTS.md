@@ -40,6 +40,11 @@ validation, including a weekly cron. Pushes to `main` also publish the
 (`.github/workflows/docs.yml`). Pull requests build the same site with
 `mkdocs build --strict` so a broken wiki link fails CI before it is published.
 
+`.github/workflows/scorecard.yml` publishes the OpenSSF Scorecard the README badge
+reads; it keeps `permissions: read-all` at the top because `publish_results` refuses
+any top-level write scope. The coverage badge is static and states the
+`--cov-fail-under=95` floor, not a measured figure: no coverage service is wired in.
+
 Dependabot PRs squash-merge themselves (`.github/workflows/dependabot-automerge.yml`)
 once every check on the head commit is green. It hangs off `workflow_run` because
 `main` has no branch protection, so native auto-merge would not wait for CI. Merges

@@ -9,6 +9,12 @@ spread daily quotas and automatic failover when a provider refuses.
 [![CodeQL](https://github.com/FiveElements/ha-ai-pool/actions/workflows/codeql.yml/badge.svg)](https://github.com/FiveElements/ha-ai-pool/actions/workflows/codeql.yml)
 [![CI](https://github.com/FiveElements/ha-ai-pool/actions/workflows/ci.yml/badge.svg)](https://github.com/FiveElements/ha-ai-pool/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-Material_for_MkDocs-526CFE?logo=materialformkdocs)](https://fiveelements.github.io/ha-ai-pool/)
+[![Coverage](https://img.shields.io/badge/coverage-%E2%89%A595%25-brightgreen?logo=pytest)](https://github.com/FiveElements/ha-ai-pool/actions/workflows/ci.yml)
+[![Dependabot](https://img.shields.io/badge/dependabot-enabled-025E8C?logo=dependabot)](https://github.com/FiveElements/ha-ai-pool/blob/main/.github/dependabot.yml)
+[![CVE alerts](https://img.shields.io/badge/CVE_alerts-Dependabot-025E8C?logo=github)](https://github.com/FiveElements/ha-ai-pool/security/dependabot)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/FiveElements/ha-ai-pool/badge)](https://scorecard.dev/viewer/?uri=github.com/FiveElements/ha-ai-pool)
+[![License](https://img.shields.io/github/license/FiveElements/ha-ai-pool)](LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/FiveElements/ha-ai-pool/total?label=downloads)](https://github.com/FiveElements/ha-ai-pool/releases)
 
 A pool publishes **one** entity in the domain it fronts. Your automations call
 that entity and know nothing about the routing:

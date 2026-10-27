@@ -436,7 +436,7 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest tests/test_errors.py tests/test_strategi
 ```
 
 CI runs the full suite on Ubuntu against the Home Assistant versions listed
-in `.github/workflows/ci.yml` (currently the declared floor, **2026.9.0**),
+in `.github/workflows/ci.yml` (currently the declared floor, **2026.10.0**),
 plus `hassfest` and HACS validation. Pull requests also build the docs with
 `mkdocs build --strict`. The harness pins one Home
 Assistant version per release, so the matrix selects versions by harness
@@ -467,22 +467,23 @@ entry.
 
 ### Supported Home Assistant versions
 
-Requires **2026.9.0** or newer, which is both the minimum declared in
+Requires **2026.10.0** or newer, which is both the minimum declared in
 `hacs.json` and the version CI tests against. Earlier versions are not
 supported: 2026.8.3 was, and the code still avoids nothing on its account, but
 it is no longer tested and no longer installable through HACS.
 
 ### Releasing
 
-Bump `version` in `custom_components/ai_pool/manifest.json`, then push a matching
-tag:
+Push a tag; nothing else carries the version:
 
 ```bash
-git tag v0.1.0 && git push origin v0.1.0
+git tag v0.9.0 && git push origin v0.9.0
 ```
 
-The release workflow refuses to publish when the tag and the manifest disagree,
-builds `ai_pool.zip`, and attaches it to a GitHub release.
+The release workflow writes the tag's version into the `manifest.json` it packs
+into `ai_pool.zip`, and attaches the zip to a GitHub release. HACS installs that
+zip, so the version users see always matches the tag. The repository's
+`manifest.json` and `pyproject.toml` stay at `0.0.0` on purpose.
 
 ## License
 

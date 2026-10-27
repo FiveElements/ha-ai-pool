@@ -8,7 +8,7 @@ A Home Assistant custom integration (`custom_components/ai_pool`, HACS-installab
 fronts several AI provider entities with **one** pool entity, rotating calls to spread
 per-model daily quotas and failing over when a provider refuses. Four pool types:
 `ai_task`, `conversation`, `tts`, `stt`. Requires Python 3.13+ and Home Assistant
-2026.9.0+. Declared integration quality scale is **platinum** (`manifest.json`).
+2026.10.0+. Declared integration quality scale is **platinum** (`manifest.json`).
 
 The product is quota split across **accounts** (API keys / config entries), not across
 entity names. Two Google keys on `gemini-flash-latest` is the intended setup.
@@ -34,6 +34,19 @@ CI uses **Python 3.14** and pins `pytest-homeassistant-custom-component` in
 from the *installed* HA manifests — that is how the test job gets
 `ai_task`/`tts`/`stt` importable without pinning their deps twice.
 
+Every `pip install` in a workflow uses `--require-hashes` (Scorecard
+Pinned-Dependencies). The hashed `requirements-{lint,docs,fuzz}.txt` are compiled
+from their `.in`; the test job installs `requirements-ci/harness-<version>.txt`,
+one per matrix row, holding the harness, mypy and the components' requirements.
+`scripts/lock.sh [harness...]` regenerates them all in Docker; run it after editing
+an `.in`, bumping the harness or mypy, or adding a matrix row. CI's
+`component_requirements.py --check` fails a lock gone stale. Dependabot recompiles
+the root `.in` locks itself and skips `requirements-ci/`.
+
+`fuzz/fuzz_classify.py` is an Atheris harness for `classify()`, run for a minute by
+the CI `Fuzz` job (and Scorecard's Fuzzing check). It loads `errors.py` by path, so
+it needs no Home Assistant.
+
 A second workflow (`.github/workflows/validate.yml`) runs `hassfest` and HACS
 validation, including a weekly cron. Pushes to `main` also publish the
 [Material for MkDocs](https://fiveelements.github.io/ha-ai-pool/) site
@@ -48,8 +61,9 @@ trailing comment, which Dependabot keeps updated. The coverage badge is static a
 `--cov-fail-under=95` floor, not a measured figure: no coverage service is wired in.
 
 Dependabot PRs squash-merge themselves (`.github/workflows/dependabot-automerge.yml`)
-once every check on the head commit is green. It hangs off `workflow_run` because
-`main` has no branch protection, so native auto-merge would not wait for CI. Merges
+once every check on the head commit is green. It hangs off `workflow_run` and
+checks every run itself rather than trusting the required-check list, which names
+only the jobs that existed when protection was set. Merges
 made with `GITHUB_TOKEN` do not trigger push workflows: such a merge publishes no
 docs and starts no CI on `main` until the next human push.
 
@@ -69,24 +83,24 @@ tested until this (or Ubuntu CI) has run:
 docker run --rm \
   -v "$PWD:/src" -v ha-ai-pool-pip:/root/.cache/pip -w /src \
   python:3.14-bookworm bash -lc '
-    pip install -q -U pip
-    pip install -q pytest-homeassistant-custom-component==0.13.363 pytest-cov mypy==1.18.2
-    python scripts/component_requirements.py > /tmp/reqs.txt
-    pip install -q -r /tmp/reqs.txt
+    pip install -q --require-hashes -r requirements-ci/harness-0.13.371.txt
     pytest tests -q --tb=short
     mypy custom_components/ai_pool
   '
 ```
 
 On PowerShell, mount `C:\project\ai-project\ha-ai-pool:/src` (or `${PWD}:/src`) the
-same way. Keep the harness pin identical to `requirements-test.txt`. The named volume
+same way, and set `MSYS_NO_PATHCONV=1` from Git Bash. Keep the harness pin identical
+to `requirements-test.txt`. The named volume
 caches wheels so the second run is just pytest.
 
 ### Releasing
 
-Bump `version` in **both** `custom_components/ai_pool/manifest.json` and
-`pyproject.toml`, then `git tag vX.Y.Z && git push origin vX.Y.Z`. The release
-workflow refuses to publish if tag and manifest disagree. `hacs.json`'s
+`git tag vX.Y.Z && git push origin vX.Y.Z`. The tag is the only version: the
+release workflow stamps it into the `manifest.json` inside `ai_pool.zip`, which is
+what HACS installs (`zip_release`). The repository's `manifest.json` and
+`pyproject.toml` stay at `0.0.0` on purpose, so they can never disagree; do not bump
+them. A tag that is not `vX.Y.Z` fails the release. `hacs.json`'s
 `homeassistant` key is the supported floor and must match the oldest entry in the CI
 matrix.
 

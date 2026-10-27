@@ -11,7 +11,7 @@ Home Assistant, then add the integration from *Settings → Devices & Services*.
 Copy `custom_components/ai_pool` into your Home Assistant
 `config/custom_components` directory and restart.
 
-Requires **Home Assistant 2026.9.0** or newer.
+Requires **Home Assistant 2026.10.0** or newer.
 
 ## Removal
 

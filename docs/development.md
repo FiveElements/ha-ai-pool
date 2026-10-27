@@ -43,19 +43,20 @@ removed with its entry).
 
 ## Supported Home Assistant versions
 
-Requires **2026.9.0** or newer (`hacs.json` and the CI matrix).
+Requires **2026.10.0** or newer (`hacs.json` and the CI matrix).
 
 ## Releasing
 
-Bump `version` in `custom_components/ai_pool/manifest.json` **and**
-`pyproject.toml`, then push a matching tag:
+Push a tag; nothing else carries the version:
 
 ```bash
-git tag v0.7.2 && git push origin v0.7.2
+git tag v0.9.0 && git push origin v0.9.0
 ```
 
-The release workflow refuses to publish when the tag and the manifest disagree,
-builds `ai_pool.zip`, and attaches it to a GitHub release.
+The release workflow writes the tag's version into the `manifest.json` it packs
+into `ai_pool.zip`, and attaches the zip to a GitHub release. HACS installs that
+zip, so the version users see always matches the tag. The repository's
+`manifest.json` and `pyproject.toml` stay at `0.0.0` on purpose.
 
 ## This documentation site
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-import voluptuous as vol
+import probatio as vol
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import ServiceValidationError

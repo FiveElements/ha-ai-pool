@@ -24,11 +24,11 @@ jobs:
           python-version: "3.14"
       # Linting needs ruff only; installing the Home Assistant test harness
       # here would add minutes for nothing.
-      - run: pip install -r requirements-lint.txt
+      - run: pip install --require-hashes -r requirements-lint.txt
       - name: Lint
-        run: ruff check custom_components tests
+        run: ruff check custom_components tests fuzz
       - name: Format check
-        run: ruff format --check custom_components tests
+        run: ruff format --check custom_components tests fuzz
 
   test:
     name: Tests (HA ${{ matrix.ha }})
@@ -41,22 +41,23 @@ jobs:
         # oldest entry here is what hacs.json declares as the minimum; add a
         # newer one alongside it to test a version before raising the floor.
         include:
-          - ha: "2026.9.0"
-            harness: "0.13.363"
+          - ha: "2026.10.0"
+            harness: "0.13.371"
             coverage: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.14"
+      # One hash-locked file per harness, written by scripts/lock.sh. The check
+      # fails a harness bump whose lock was not regenerated, instead of letting
+      # a component import fail somewhere in the suite.
       - name: Install
+        env:
+          LOCK: requirements-ci/harness-${{ matrix.harness }}.txt
         run: |
-          pip install --upgrade pip
-          pip install "pytest-homeassistant-custom-component==${{ matrix.harness }}"
-          pip install mypy==1.18.2
-          python scripts/component_requirements.py > component-requirements.txt
-          cat component-requirements.txt
-          pip install -r component-requirements.txt
+          pip install --require-hashes -r "$LOCK"
+          python scripts/component_requirements.py --check
       - name: Test
         run: |
           pytest tests \
@@ -73,3 +74,17 @@ jobs:
         with:
           name: coverage
           path: coverage.xml
+
+  fuzz:
+    name: Fuzz
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+      - run: pip install --require-hashes -r requirements-fuzz.txt
+      # A minute per push: enough to catch a pattern edit that breaks the
+      # contract, without making every PR wait on a long campaign.
+      - name: Fuzz the failure classifier
+        run: python fuzz/fuzz_classify.py -max_total_time=60

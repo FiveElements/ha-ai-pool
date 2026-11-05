@@ -400,8 +400,10 @@ by a bad API key.
 - **`conversation`** — a member answering with an error response counts as a
   failure, otherwise the pool would return "sorry" from the first broken member
   and never reach a working one. Languages are advertised as match-all.
-- **`tts`** — languages and options are the *union* across members; a member
-  that cannot handle a request raises and the next one is tried. The entity is
+- **`tts`** — languages, options and voices are the *union* across members
+  (so the Assist pipeline editor shows the members' voice picker, e.g. the
+  Gemini voices); a member that cannot handle a request — including a voice its
+  provider does not know — raises and the next one is tried. The entity is
   named *Text-to-speech* under the pool's device (so `tts.<pool>_text_to_speech`
   for a new pool), because the tts manager refuses an engine without a name of
   its own; the other pool types take the pool's name.

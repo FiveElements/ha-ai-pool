@@ -20,6 +20,7 @@ from pytest_homeassistant_custom_component.common import (
     MockEntityPlatform,
     MockPlatform,
 )
+from pytest_homeassistant_custom_component.typing import WebSocketGenerator
 
 from custom_components.ai_pool.const import (
     CONF_COOLDOWN,
@@ -318,20 +319,27 @@ class FakeTTSMember(tts.TextToSpeechEntity):
         error: str | None = None,
         languages: list[str] | None = None,
         options: list[str] | None = None,
+        voices: list[tts.Voice] | None = None,
     ) -> None:
         """Initialise the fake member."""
         self._attr_name = name
         self._attr_default_language = "en"
         self._attr_supported_languages = languages or ["en"]
         self._options = options or []
+        self._voices = voices
         self._audio = audio
         self._error = error
         self.calls = 0
+        self.received_options: dict[str, Any] | None = None
 
     @property
     def supported_options(self) -> list[str]:
         """Options this member accepts."""
         return self._options
+
+    def async_get_supported_voices(self, language: str) -> list[tts.Voice] | None:
+        """Voices this member offers, the same for every language."""
+        return self._voices
 
     def get_tts_audio(
         self, message: str, language: str, options: dict[str, Any] | None = None
@@ -344,6 +352,7 @@ class FakeTTSMember(tts.TextToSpeechEntity):
     ) -> tts.TtsAudioType:
         """Synthesise the message."""
         self.calls += 1
+        self.received_options = options
         if self._error:
             raise HomeAssistantError(self._error)
         return "mp3", self._audio
@@ -422,6 +431,85 @@ async def test_tts_pool_advertises_the_union_of_member_options(
     pool_entity = hass.data[tts.DATA_COMPONENT].get_entity(TTS_POOL)
     assert pool_entity is not None
     assert pool_entity.supported_options == ["voice", "speed"]
+
+
+async def test_tts_pool_offers_the_union_of_member_voices(
+    hass: HomeAssistant,
+    hass_ws_client: WebSocketGenerator,
+) -> None:
+    """The Assist pipeline editor lists the members' voices for the pool."""
+    assert await async_setup_component(hass, "tts", {})
+    await publish_members(
+        hass,
+        "tts",
+        [
+            FakeTTSMember(
+                A,
+                audio=b"a",
+                options=["voice"],
+                voices=[tts.Voice("Zephyr", "Zephyr"), tts.Voice("Puck", "Puck")],
+            ),
+            # A second account on the same provider lists the same voices: each
+            # must appear once.
+            FakeTTSMember(
+                B,
+                audio=b"b",
+                options=["voice"],
+                voices=[tts.Voice("Puck", "Puck"), tts.Voice("Kore", "Kore")],
+            ),
+        ],
+    )
+    await setup_pool(hass, "tts")
+
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id(
+        {"type": "tts/engine/voices", "engine_id": TTS_POOL, "language": "en"}
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"]
+    assert [v["voice_id"] for v in msg["result"]["voices"]] == [
+        "Zephyr",
+        "Puck",
+        "Kore",
+    ]
+
+
+async def test_tts_pool_offers_no_voices_when_no_member_lists_any(
+    hass: HomeAssistant,
+) -> None:
+    """An empty list would show an empty picker; None hides it."""
+    assert await async_setup_component(hass, "tts", {})
+    await publish_members(hass, "tts", [FakeTTSMember(A, audio=b"a")])
+    await setup_pool(hass, "tts")
+
+    pool_entity = hass.data[tts.DATA_COMPONENT].get_entity(TTS_POOL)
+    assert pool_entity is not None
+    assert pool_entity.async_get_supported_voices("en") is None
+
+
+async def test_tts_pool_forwards_the_chosen_voice_to_the_member(
+    hass: HomeAssistant,
+) -> None:
+    """A voice picked on the pool reaches the member that synthesises."""
+    assert await async_setup_component(hass, "tts", {})
+    member = FakeTTSMember(
+        A, audio=b"a", options=["voice"], voices=[tts.Voice("Kore", "Kore")]
+    )
+    await publish_members(hass, "tts", [member])
+    await setup_pool(hass, "tts")
+
+    media_source_id = tts.generate_media_source_id(
+        hass,
+        "bonjour",
+        engine=TTS_POOL,
+        language="en",
+        options={"voice": "Kore"},
+        cache=False,
+    )
+    await tts.async_get_media_source_audio(hass, media_source_id)
+
+    assert member.received_options == {"voice": "Kore"}
 
 
 async def test_tts_pool_falls_back_when_the_tts_component_is_missing(

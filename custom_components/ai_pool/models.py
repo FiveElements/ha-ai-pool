@@ -15,8 +15,6 @@ free to change it, which makes this a heuristic and not a lookup: an unknown
 model or account is reported as ``None`` and simply carries no conclusion.
 """
 
-from __future__ import annotations
-
 from collections.abc import Mapping
 from typing import Any
 
@@ -59,7 +57,7 @@ def member_model(hass: HomeAssistant, entity_id: str) -> str | None:
         return None
 
     sources: list[Mapping[str, Any]] = []
-    subentry_id = getattr(registry_entry, "config_subentry_id", None)
+    subentry_id = registry_entry.config_subentry_id
     if subentry_id and (subentry := config_entry.subentries.get(subentry_id)):
         sources.append(subentry.data)
     sources.append({**config_entry.data, **config_entry.options})

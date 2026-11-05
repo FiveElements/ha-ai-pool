@@ -1,7 +1,5 @@
 """Constants for the AI Pool integration."""
 
-from __future__ import annotations
-
 from typing import Final
 
 DOMAIN: Final = "ai_pool"

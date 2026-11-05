@@ -1,7 +1,5 @@
 """Config and options flow for AI Pool."""
 
-from __future__ import annotations
-
 from typing import Any
 
 import probatio as vol
@@ -70,7 +68,7 @@ def _stt_buffer_mb(raw: Any) -> int:
     """Convert a stored byte limit into the megabytes the form shows."""
     try:
         value = int(raw)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         value = DEFAULT_STT_BUFFER_LIMIT
     return max(1, value // _BYTES_PER_MB)
 

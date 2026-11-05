@@ -1,7 +1,5 @@
 """Text-to-speech pool entity."""
 
-from __future__ import annotations
-
 from typing import Any
 
 from homeassistant.components import tts

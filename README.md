@@ -430,19 +430,21 @@ python -m venv .venv
 .venv/bin/ruff check custom_components tests
 ```
 
-The Home Assistant test harness imports `fcntl` and therefore **only runs on
-Linux and macOS**. On Windows the provider-independent tests still run:
+The tests use [`pytest-homeassistant`](https://github.com/home-assistant/core/tree/dev/packages/pytest-homeassistant),
+Home Assistant's own test package. Home Assistant imports `fcntl`, so the
+suite **only runs on Linux and macOS**. On Windows the provider-independent
+tests still run:
 
 ```bash
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest tests/test_errors.py tests/test_strategies.py -q --noconftest
 ```
 
 CI runs the full suite on Ubuntu against the Home Assistant versions listed
-in `.github/workflows/ci.yml` (currently the declared floor, **2026.10.0**),
+in `.github/workflows/ci.yml` (currently the declared floor, **2026.11.0**),
 plus `hassfest` and HACS validation. Pull requests also build the docs with
-`mkdocs build --strict`. The harness pins one Home
-Assistant version per release, so the matrix selects versions by harness
-version; `scripts/component_requirements.py` then reads the fronted components'
+`mkdocs build --strict`. Each `pytest-homeassistant` release pins the Home
+Assistant release with the same version, so the matrix selects versions by
+package version; `scripts/component_requirements.py` then reads the fronted components'
 own dependencies from the installed manifests, which keeps them right across
 those versions.
 
@@ -469,10 +471,13 @@ entry.
 
 ### Supported Home Assistant versions
 
-Requires **2026.10.0** or newer, which is both the minimum declared in
+Requires **2026.11.0** or newer, which is both the minimum declared in
 `hacs.json` and the version CI tests against. Earlier versions are not
-supported: 2026.8.3 was, and the code still avoids nothing on its account, but
-it is no longer tested and no longer installable through HACS.
+supported. 2026.10 was, and nothing in the integration itself depends on
+2026.11, but the community test package used up to then
+(`pytest-homeassistant-custom-component`) ends at 2026.10, and the official
+`pytest-homeassistant` that replaces it starts at 2026.11. An older version can
+no longer be tested, so it can no longer be claimed.
 
 ### Releasing
 

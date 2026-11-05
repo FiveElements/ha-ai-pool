@@ -10,8 +10,6 @@ The first two are per member; the third is the pool's own, because no
 per-member counter can show that a request needed a second member.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from homeassistant.components.sensor import (

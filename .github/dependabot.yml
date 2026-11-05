@@ -19,7 +19,8 @@ updates:
       # The harness pins exactly one Home Assistant version and must match the
       # oldest row of ci.yml and the floor in hacs.json. A lone bump here would
       # silently test a different Home Assistant than the one we claim to support.
-      - dependency-name: pytest-homeassistant-custom-component
-      # ci.yml installs mypy by version too; bumping only requirements-test.txt
-      # would make local and CI type checks disagree.
+      - dependency-name: pytest-homeassistant
+      # ci.yml installs these by version too; bumping only requirements-test.txt
+      # would make local and CI runs disagree.
       - dependency-name: mypy
+      - dependency-name: pytest-cov

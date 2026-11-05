@@ -8,8 +8,9 @@ python -m venv .venv
 .venv/bin/mypy custom_components/ai_pool
 ```
 
-The Home Assistant test harness imports `fcntl` and therefore **only runs on
-Linux and macOS**. On Windows the provider-independent tests still run:
+The tests use `pytest-homeassistant`, Home Assistant's own test package. Home
+Assistant imports `fcntl`, so the suite **only runs on Linux and macOS**. On
+Windows the provider-independent tests still run:
 
 ```bash
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest tests/test_errors.py tests/test_strategies.py -q --noconftest
@@ -43,7 +44,8 @@ removed with its entry).
 
 ## Supported Home Assistant versions
 
-Requires **2026.10.0** or newer (`hacs.json` and the CI matrix).
+Requires **2026.11.0** or newer (`hacs.json` and the CI matrix). 2026.11 is
+the first release `pytest-homeassistant` covers, so nothing older can be tested.
 
 ## Releasing
 

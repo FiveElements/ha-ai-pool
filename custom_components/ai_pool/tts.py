@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components import tts
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .entity import AIPoolEntity
@@ -78,6 +78,26 @@ class AIPoolTTSEntity(AIPoolEntity, tts.TextToSpeechEntity):
                 if option not in options:
                     options.append(option)
         return options
+
+    @callback
+    def async_get_supported_voices(self, language: str) -> list[tts.Voice] | None:
+        """Union of the voices the members offer for ``language``.
+
+        Without this the Assist pipeline editor showed no voice picker for the
+        pool, even when every member was a Gemini entity with a list of voices.
+        Deduplicated by ``voice_id``, so two accounts on the same provider show
+        each voice once. A voice only some members know is still offered: a
+        member that rejects it raises and the pool moves to the next one.
+        ``None`` (no picker) when no member lists any voice.
+        """
+        voices: list[tts.Voice] = []
+        seen: set[str] = set()
+        for entity in self._member_entities():
+            for voice in entity.async_get_supported_voices(language) or []:
+                if voice.voice_id not in seen:
+                    seen.add(voice.voice_id)
+                    voices.append(voice)
+        return voices or None
 
     async def async_get_tts_audio(
         self,

@@ -16,8 +16,16 @@ working one. Languages are advertised as match-all.
 
 ## `tts`
 
-Languages and options are the **union** across members; a member that cannot
-handle a request raises and the next one is tried.
+Languages, options and voices are the **union** across members; a member that
+cannot handle a request raises and the next one is tried.
+
+Voices are what the Assist pipeline editor lists under the TTS engine, so a
+pool of Gemini entities offers the same voice picker as one Gemini entity. A
+voice appears once even when several accounts list it. The chosen voice is
+passed unchanged to whichever member answers: in a pool mixing providers, a
+voice one provider does not know makes that member fail and the next is tried.
+The pool sets no default voice of its own; with none chosen, each member uses
+its own default.
 
 The pool entity is named *Text-to-speech* under the pool's device, so a new
 pool's entity id is `tts.<pool>_text_to_speech`. The other pool types take the

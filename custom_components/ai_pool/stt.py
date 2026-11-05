@@ -1,7 +1,5 @@
 """Speech-to-text pool entity."""
 
-from __future__ import annotations
-
 import logging
 from collections.abc import AsyncIterable
 from typing import Any

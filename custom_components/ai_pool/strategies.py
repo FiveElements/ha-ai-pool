@@ -4,8 +4,6 @@ Kept as pure functions over plain data so the routing policy can be tested
 without a Home Assistant instance.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 
 from .const import STRATEGY_LEAST_USED, STRATEGY_PRIORITY, STRATEGY_ROUND_ROBIN

@@ -1,7 +1,5 @@
 """AI Pool: route AI calls across several providers with quota-aware failover."""
 
-from __future__ import annotations
-
 import logging
 
 import probatio as vol

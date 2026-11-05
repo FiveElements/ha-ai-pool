@@ -1,7 +1,5 @@
 """Shared base for pool entities."""
 
-from __future__ import annotations
-
 import logging
 
 from homeassistant.core import Event, EventStateChangedData, callback

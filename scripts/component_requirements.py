@@ -7,8 +7,6 @@ a second time in a requirements file, keeps this correct across the Home
 Assistant versions the CI matrix covers.
 """
 
-from __future__ import annotations
-
 import json
 from pathlib import Path
 

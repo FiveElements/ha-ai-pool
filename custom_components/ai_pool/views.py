@@ -7,8 +7,6 @@ compiler could see, and a typo in a consumer read as a missing value rather than
 an error. A frozen dataclass says what a member view is, once.
 """
 
-from __future__ import annotations
-
 from dataclasses import asdict, dataclass, field
 from typing import Any
 

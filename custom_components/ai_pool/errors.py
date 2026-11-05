@@ -11,8 +11,6 @@ Observed in the wild:
     OpenRouter           : 'Error talking to API'
 """
 
-from __future__ import annotations
-
 import re
 from dataclasses import dataclass
 from enum import StrEnum

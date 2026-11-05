@@ -1,7 +1,5 @@
 """AI Task pool entity."""
 
-from __future__ import annotations
-
 from homeassistant.components import ai_task, conversation
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback

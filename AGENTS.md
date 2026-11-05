@@ -7,8 +7,8 @@ This file provides guidance to Agentic Code when working with code in this repos
 A Home Assistant custom integration (`custom_components/ai_pool`, HACS-installable) that
 fronts several AI provider entities with **one** pool entity, rotating calls to spread
 per-model daily quotas and failing over when a provider refuses. Four pool types:
-`ai_task`, `conversation`, `tts`, `stt`. Requires Python 3.13+ and Home Assistant
-2026.10.0+. Declared integration quality scale is **platinum** (`manifest.json`).
+`ai_task`, `conversation`, `tts`, `stt`. Requires Python 3.14.2+ and Home Assistant
+2026.11.0+. Declared integration quality scale is **platinum** (`manifest.json`).
 
 The product is quota split across **accounts** (API keys / config entries), not across
 entity names. Two Google keys on `gemini-flash-latest` is the intended setup.
@@ -28,8 +28,16 @@ python -m venv .venv
 pip install -r requirements-docs.txt && mkdocs serve   # http://127.0.0.1:8000
 ```
 
-CI uses **Python 3.14** and pins `pytest-homeassistant-custom-component` in
-`requirements-test.txt` (must match the oldest row of `.github/workflows/ci.yml`).
+CI uses **Python 3.14** and pins `pytest-homeassistant` (Home Assistant's own test
+package, versioned like Home Assistant) in `requirements-test.txt` (must match the
+oldest row of `.github/workflows/ci.yml`). It replaced
+`pytest-homeassistant-custom-component`, which ends at 2026.10 — do not reinstall
+both, their fixtures overlap. Unlike the old harness it does not bring
+`pytest-cov`, so CI and `requirements-test.txt` install it explicitly. Its fixture
+`hass_config_dir` is overridden in `tests/conftest.py` with a per-test temp dir (the
+default shared `tests/testing_config` does not exist, and tts cannot create its
+cache), and `pyproject.toml` disables the respx pytest plugin: Home Assistant aliases
+`httpx` to `httpx2` on import and refuses once `httpx` is already loaded.
 `scripts/component_requirements.py` reads the fronted components' pip requirements
 from the *installed* HA manifests — that is how the test job gets
 `ai_task`/`tts`/`stt` importable without pinning their deps twice.
@@ -76,8 +84,7 @@ docs and starts no CI on `main` until the next human push.
 
 ### Windows
 
-The full suite cannot run natively — `pytest-homeassistant-custom-component` imports
-`fcntl`. Only the provider-independent tests work:
+The full suite cannot run natively — Home Assistant imports `fcntl`. Only the provider-independent tests work:
 
 ```bash
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest tests/test_errors.py tests/test_strategies.py -q --noconftest
@@ -90,7 +97,7 @@ tested until this (or Ubuntu CI) has run:
 docker run --rm \
   -v "$PWD:/src" -v ha-ai-pool-pip:/root/.cache/pip -w /src \
   python:3.14-bookworm bash -lc '
-    pip install -q pytest-homeassistant-custom-component==0.13.371 mypy==1.18.2
+    pip install -q pytest-homeassistant==2026.11.0b6 pytest-cov==7.1.0 mypy==1.18.2
     python scripts/component_requirements.py > /tmp/reqs.txt
     pip install -q -r /tmp/reqs.txt
     pytest tests -q --tb=short
@@ -238,7 +245,7 @@ is optional follow-up, not a merge blocker.
 ## Conventions
 
 - Ruff with `D` (pydocstyle, pep257) enabled: **every module, class and function needs a
-  docstring**; line length 88; target `py313`. Tests are exempt from `D100/D103/D104`.
+  docstring**; line length 88; target `py314`. Tests are exempt from `D100/D103/D104`.
 - Comments in this codebase explain *why*, usually naming the failure mode the code
   exists to prevent, often in past tense ("it used to…"). Match that register; don't add
   comments that restate the code.

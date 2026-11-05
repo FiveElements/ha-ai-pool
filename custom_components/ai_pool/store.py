@@ -12,8 +12,6 @@ by age rather than by day, because a per-minute limit knows nothing about
 midnight.
 """
 
-from __future__ import annotations
-
 import time
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field

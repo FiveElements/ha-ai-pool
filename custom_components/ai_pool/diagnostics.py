@@ -1,7 +1,5 @@
 """Diagnostics support for AI Pool."""
 
-from __future__ import annotations
-
 from typing import Any
 
 from homeassistant.components.diagnostics import REDACTED

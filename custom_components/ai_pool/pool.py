@@ -5,8 +5,6 @@ performs the real work against one member entity; everything about *which*
 member and *what to do when it fails* lives here.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import time

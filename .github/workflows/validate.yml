@@ -9,6 +9,8 @@ on:
     # that no commit of ours caused.
     - cron: "23 4 * * 1"
   workflow_dispatch:
+  # Called by the release, so a tag that breaks hassfest or HACS is not published.
+  workflow_call:
 
 permissions:
   contents: read

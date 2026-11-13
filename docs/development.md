@@ -60,6 +60,9 @@ into `ai_pool.zip`, and attaches the zip to a GitHub release. HACS installs that
 zip, so the version users see always matches the tag. The repository's
 `manifest.json` and `pyproject.toml` stay at `0.0.0` on purpose.
 
+It first runs CI (Ruff, tests, fuzz) and Validate (hassfest, HACS) on the
+tagged commit, and publishes nothing unless both pass.
+
 ## This documentation site
 
 ```bash

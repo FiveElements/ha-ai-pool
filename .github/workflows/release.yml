@@ -8,8 +8,21 @@ permissions:
   contents: read
 
 jobs:
+  # v0.1.2 was published while the CI of its commit was still running. The
+  # release now runs the same checks on the tagged tree itself instead of
+  # trusting whatever ran (or did not run: a merge made with GITHUB_TOKEN
+  # starts no push workflow) on that commit.
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+
+  validate:
+    name: Validate
+    uses: ./.github/workflows/validate.yml
+
   release:
     name: Build and publish
+    needs: [ci, validate]
     runs-on: ubuntu-latest
     permissions:
       # Creating the release and attaching the zip.

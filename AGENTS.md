@@ -105,14 +105,16 @@ docker run --rm \
   '
 ```
 
-On PowerShell, mount `C:\project\ai-project\ha-ai-pool:/src` (or `${PWD}:/src`) the
+On PowerShell, mount `C:\project\FiveElements\ha-ai-pool:/src` (or `${PWD}:/src`) the
 same way, and set `MSYS_NO_PATHCONV=1` from Git Bash. Keep the harness pin identical
 to `requirements-test.txt`. The named volume
 caches wheels so the second run is just pytest.
 
 ### Releasing
 
-`git tag vX.Y.Z && git push origin vX.Y.Z`. The tag is the only version: the
+`git tag vX.Y.Z && git push origin vX.Y.Z`. The release workflow calls `ci.yml`
+and `validate.yml` (`workflow_call`) on the tag and publishes only if both pass;
+keep both callable. The tag is the only version: the
 release workflow stamps it into the `manifest.json` inside `ai_pool.zip`, which is
 what HACS installs (`zip_release`). The repository's `manifest.json` and
 `pyproject.toml` stay at `0.0.0` on purpose, so they can never disagree; do not bump
